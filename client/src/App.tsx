@@ -6,19 +6,31 @@ import { TaskFormDialog } from "./components/TaskFormDialog";
 import { TaskList } from "./components/TaskList";
 import type {
   DueDateFilter,
+  PriorityFilter,
   StatusFilter,
   Task,
   TaskInput,
   TaskListResponse,
+  TaskSort,
 } from "./types";
 
 interface Filters {
   search: string;
   status: StatusFilter;
   dueDate: DueDateFilter;
+  priority: PriorityFilter;
+  tag: string;
+  sort: TaskSort;
 }
 
-const EMPTY_FILTERS: Filters = { search: "", status: "", dueDate: "" };
+const EMPTY_FILTERS: Filters = {
+  search: "",
+  status: "",
+  dueDate: "",
+  priority: "",
+  tag: "",
+  sort: "CREATED_DESC",
+};
 
 function getLocalDateValue(): string {
   const now = new Date();
@@ -32,6 +44,7 @@ export default function App() {
   const [data, setData] = useState<TaskListResponse | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [searchDraft, setSearchDraft] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
   const [page, setPage] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
   const [settledRequestKey, setSettledRequestKey] = useState("");
@@ -40,7 +53,7 @@ export default function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
-  const requestKey = `${filters.search}\u0000${filters.status}\u0000${filters.dueDate}\u0000${page}\u0000${refreshKey}`;
+  const requestKey = `${filters.search}\u0000${filters.status}\u0000${filters.dueDate}\u0000${filters.priority}\u0000${filters.tag}\u0000${filters.sort}\u0000${page}\u0000${refreshKey}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,11 +95,16 @@ export default function App() {
   function applySearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(1);
-    setFilters((current) => ({ ...current, search: searchDraft.trim() }));
+    setFilters((current) => ({
+      ...current,
+      search: searchDraft.trim(),
+      tag: tagDraft.trim(),
+    }));
   }
 
   function clearFilters() {
     setSearchDraft("");
+    setTagDraft("");
     setFilters(EMPTY_FILTERS);
     setPage(1);
   }
@@ -124,7 +142,14 @@ export default function App() {
   }
 
   const totalItems = data?.pagination.totalItems ?? 0;
-  const hasFilters = Boolean(filters.search || filters.status || filters.dueDate);
+  const hasFilters = Boolean(
+    filters.search ||
+      filters.status ||
+      filters.dueDate ||
+      filters.priority ||
+      filters.tag ||
+      filters.sort !== "CREATED_DESC",
+  );
   const isLoading = settledRequestKey !== requestKey;
   const loadError = requestError?.key === requestKey ? requestError.message : "";
   const showInitialLoading = isLoading && !data;
@@ -166,6 +191,16 @@ export default function App() {
               />
             </div>
           </div>
+          <div className="tag-field">
+            <label htmlFor="tag-filter">แท็ก</label>
+            <input
+              id="tag-filter"
+              value={tagDraft}
+              onChange={(event) => setTagDraft(event.target.value)}
+              placeholder="เช่น งาน"
+              maxLength={30}
+            />
+          </div>
           <div className="status-field">
             <label htmlFor="status-filter">สถานะ</label>
             <select
@@ -205,6 +240,44 @@ export default function App() {
               <option value="NO_DATE">ไม่กำหนดวัน</option>
             </select>
           </div>
+          <div className="priority-field">
+            <label htmlFor="priority-filter">ความสำคัญ</label>
+            <select
+              id="priority-filter"
+              value={filters.priority}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  priority: event.target.value as PriorityFilter,
+                }));
+                setPage(1);
+              }}
+            >
+              <option value="">ทุกระดับ</option>
+              <option value="LOW">ต่ำ</option>
+              <option value="NORMAL">ปกติ</option>
+              <option value="HIGH">สูง</option>
+            </select>
+          </div>
+          <div className="sort-field">
+            <label htmlFor="sort-filter">เรียงตาม</label>
+            <select
+              id="sort-filter"
+              value={filters.sort}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  sort: event.target.value as TaskSort,
+                }));
+                setPage(1);
+              }}
+            >
+              <option value="CREATED_DESC">เพิ่มล่าสุด</option>
+              <option value="UPDATED_DESC">แก้ไขล่าสุด</option>
+              <option value="DUE_ASC">กำหนดส่งใกล้สุด</option>
+              <option value="PRIORITY_DESC">สำคัญสูงสุด</option>
+            </select>
+          </div>
           <button type="submit" className="button button-secondary search-button">
             ค้นหา
           </button>
@@ -220,7 +293,7 @@ export default function App() {
             <h2>รายการงาน</h2>
             <p>
               {hasFilters
-                ? "ผลลัพธ์ตามคำค้นหา สถานะ และกำหนดส่งที่เลือก"
+                ? "ผลลัพธ์ตามตัวกรองและลำดับที่เลือก"
                 : "เรียงจากงานที่เพิ่มล่าสุด"}
             </p>
           </div>

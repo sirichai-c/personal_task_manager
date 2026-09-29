@@ -38,6 +38,38 @@ const migrations = [
         ON tasks(due_date, status, created_at DESC, id DESC);
     `,
   },
+  {
+    version: 3,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'NORMAL'
+        CHECK (priority IN ('LOW', 'NORMAL', 'HIGH'));
+
+      CREATE TABLE tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE
+          CHECK (
+            length(name) BETWEEN 1 AND 30 AND
+            name = trim(name) AND
+            instr(name, ',') = 0
+          )
+      ) STRICT;
+
+      CREATE TABLE task_tags (
+        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (task_id, tag_id)
+      ) STRICT;
+
+      CREATE INDEX idx_tasks_priority_created_at
+        ON tasks(priority, created_at DESC, id DESC);
+
+      CREATE INDEX idx_tasks_updated_at
+        ON tasks(updated_at DESC, id DESC);
+
+      CREATE INDEX idx_task_tags_tag_task
+        ON task_tags(tag_id, task_id);
+    `,
+  },
 ] as const;
 
 export function runMigrations(database: DatabaseSync): void {

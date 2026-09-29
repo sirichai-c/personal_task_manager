@@ -1,6 +1,6 @@
 # เว็บจัดการงานส่วนตัว
 
-เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง กำหนดวันครบกำหนด แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
+เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง จัดลำดับความสำคัญ ติดแท็ก กำหนดวันครบกำหนด เรียงรายการ แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
 
 ## สิ่งที่ต้องมี
 
@@ -63,7 +63,7 @@ npm run check
 
 Integration tests สร้าง SQLite ใน temporary directory ของระบบและลบทิ้งหลังทดสอบ จึงไม่แตะฐานข้อมูลใช้งานจริง Performance script ทำเช่นเดียวกันและสร้างข้อมูล 5,000 รายการเฉพาะในฐานข้อมูลชั่วคราว
 
-Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบวันครบกำหนด งานเกินกำหนด CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
+Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบ priority, tags, sorting, วันครบกำหนด, CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
 
 ```powershell
 python -m pip install --target .browser-tools playwright
@@ -75,13 +75,15 @@ python scripts/run-browser-smoke.py
 
 | Method | Path | การทำงาน |
 | --- | --- | --- |
-| `GET` | `/api/tasks?search=&status=&dueDate=&referenceDate=&page=1` | รายการล่าสุดก่อน ค้นหา/กรอง และแบ่งหน้าละ 20 รายการ |
-| `POST` | `/api/tasks` | เพิ่มงานใหม่พร้อม `dueDate` ที่ไม่บังคับ สถานะเริ่มต้น `TODO` |
-| `PATCH` | `/api/tasks/:id` | แก้ชื่อ รายละเอียด สถานะ หรือวันครบกำหนด |
+| `GET` | `/api/tasks?search=&status=&dueDate=&priority=&tag=&sort=&referenceDate=&page=1` | ค้นหา กรอง เรียง และแบ่งหน้าละ 20 รายการ |
+| `POST` | `/api/tasks` | เพิ่มงานพร้อม `dueDate`, `priority`, `tags`; สถานะเริ่มต้น `TODO` |
+| `PATCH` | `/api/tasks/:id` | แก้ชื่อ รายละเอียด สถานะ วันครบกำหนด ความสำคัญ หรือแท็ก |
 | `DELETE` | `/api/tasks/:id` | ลบงาน |
 | `GET` | `/api/health` | ตรวจว่า server พร้อม |
 
-สถานะที่รองรับคือ `TODO`, `IN_PROGRESS` และ `DONE`; `dueDate` เป็น `null` หรือวันที่ `YYYY-MM-DD` ตัวกรองกำหนดส่งรองรับ `TODAY`, `THIS_WEEK`, `OVERDUE` และ `NO_DATE` โดย `referenceDate` ระบุวันที่ท้องถิ่นของผู้ใช้ สัปดาห์นับจันทร์–อาทิตย์ และงาน `DONE` จะไม่ถูกนับเป็นงานเกินกำหนด ข้อผิดพลาดตอบในรูป `{ "error": { "code", "message", "fields"? } }` โดยไม่ส่ง stack trace กลับไป
+สถานะที่รองรับคือ `TODO`, `IN_PROGRESS` และ `DONE`; ความสำคัญคือ `LOW`, `NORMAL` หรือ `HIGH` (ค่าปริยาย `NORMAL`) และกำหนดได้ไม่เกิน 10 แท็ก แท็กละ 1–30 ตัวอักษรแบบไม่ซ้ำกันโดยไม่สนตัวพิมพ์ `dueDate` เป็น `null` หรือวันที่ `YYYY-MM-DD` ตัวกรองกำหนดส่งรองรับ `TODAY`, `THIS_WEEK`, `OVERDUE` และ `NO_DATE` โดย `referenceDate` ระบุวันที่ท้องถิ่นของผู้ใช้ สัปดาห์นับจันทร์–อาทิตย์ และงาน `DONE` จะไม่ถูกนับเป็นงานเกินกำหนด
+
+`sort` รองรับ `CREATED_DESC` (ค่าปริยาย), `UPDATED_DESC`, `DUE_ASC` ซึ่งวางงานไม่มีวันไว้ท้ายสุด และ `PRIORITY_DESC` ซึ่งเรียง `HIGH → NORMAL → LOW`; ทุกแบบมีลำดับสำรองที่คงที่ ข้อผิดพลาดตอบในรูป `{ "error": { "code", "message", "fields"? } }` โดยไม่ส่ง stack trace กลับไป
 
 ## โครงสร้างโปรเจกต์
 

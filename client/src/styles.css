@@ -182,7 +182,10 @@ button:disabled {
 
 .filter-bar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 155px 180px auto auto;
+  grid-template-areas:
+    "search search tag tag submit clear"
+    "status due priority sort . .";
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) repeat(3, minmax(125px, 0.8fr)) auto;
   align-items: end;
   gap: 12px;
   padding: 24px;
@@ -191,17 +194,47 @@ button:disabled {
 }
 
 .search-field,
+.tag-field,
 .status-field,
 .due-date-field,
+.priority-field,
+.sort-field,
 .field {
   display: grid;
   gap: 7px;
   min-width: 0;
 }
 
+.search-field {
+  grid-area: search;
+}
+
+.tag-field {
+  grid-area: tag;
+}
+
+.status-field {
+  grid-area: status;
+}
+
+.due-date-field {
+  grid-area: due;
+}
+
+.priority-field {
+  grid-area: priority;
+}
+
+.sort-field {
+  grid-area: sort;
+}
+
 .search-field label,
+.tag-field label,
 .status-field label,
 .due-date-field label,
+.priority-field label,
+.sort-field label,
 .field label,
 .field-label-row {
   color: #354159;
@@ -270,6 +303,7 @@ select[aria-invalid="true"] {
 }
 
 .search-button {
+  grid-area: submit;
   min-width: 86px;
 }
 
@@ -283,6 +317,7 @@ select[aria-invalid="true"] {
 }
 
 .clear-button {
+  grid-area: clear;
   min-height: 44px;
   padding: 8px 4px;
 }
@@ -419,6 +454,60 @@ select[aria-invalid="true"] {
   padding: 3px 9px;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.priority-low {
+  border-color: #d9e0e9;
+  color: #68758a;
+  background: #f7f9fb;
+}
+
+.priority-normal {
+  border-color: #cad7f8;
+  color: var(--cobalt-dark);
+  background: var(--cobalt-soft);
+}
+
+.priority-high {
+  border-color: #f0b8c1;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag-list li {
+  border: 1px solid #d8e0ec;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #536177;
+  background: #f8faff;
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .status-todo {
@@ -680,6 +769,12 @@ select[aria-invalid="true"] {
   font-size: 0.83rem;
 }
 
+.field-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .form-error {
   margin-bottom: 18px;
   border-radius: 9px;
@@ -773,11 +868,14 @@ select[aria-invalid="true"] {
 
 @media (max-width: 860px) {
   .filter-bar {
-    grid-template-columns: minmax(0, 1fr) 145px 170px auto;
+    grid-template-areas:
+      "search search tag tag"
+      "status due priority sort"
+      "submit submit clear clear";
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .clear-button {
-    grid-column: 1 / -1;
     justify-self: start;
     min-height: 32px;
   }
@@ -841,26 +939,26 @@ select[aria-invalid="true"] {
   }
 
   .filter-bar {
+    grid-template-areas:
+      "search search"
+      "tag tag"
+      "status due"
+      "priority sort"
+      "submit submit"
+      "clear clear";
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     padding: 18px;
   }
 
-  .search-field {
-    grid-column: 1 / -1;
-  }
-
   .status-field,
-  .due-date-field {
+  .due-date-field,
+  .priority-field,
+  .sort-field {
     min-width: 0;
   }
 
   .search-button {
-    grid-column: 1 / -1;
     width: 100%;
-  }
-
-  .clear-button {
-    grid-column: 1 / -1;
   }
 
   .list-heading {

@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from "../types";
+import type { Task, TaskPriority, TaskStatus } from "../types";
 
 interface TaskListProps {
   tasks: Task[];
@@ -24,6 +24,12 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   TODO: "ต้องทำ",
   IN_PROGRESS: "กำลังทำ",
   DONE: "เสร็จแล้ว",
+};
+
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  LOW: "สำคัญต่ำ",
+  NORMAL: "สำคัญปกติ",
+  HIGH: "สำคัญสูง",
 };
 
 function getLocalDateValue(): string {
@@ -91,7 +97,7 @@ export function TaskList({
         <h2>{hasFilters ? "ไม่พบงานที่ตรงกัน" : "ยังไม่มีงานในรายการ"}</h2>
         <p>
           {hasFilters
-            ? "ลองเปลี่ยนคำค้นหา สถานะ หรือกำหนดส่งเพื่อดูงานอื่น"
+            ? "ลองเปลี่ยนคำค้นหา แท็ก สถานะ หรือระดับความสำคัญเพื่อดูงานอื่น"
             : "เพิ่มงานแรก แล้วค่อย ๆ จัดการทีละเรื่อง"}
         </p>
         <button
@@ -113,11 +119,23 @@ export function TaskList({
         <li className="task-row" key={task.id}>
           <span className={`status-line status-line-${task.status.toLowerCase()}`} aria-hidden="true" />
           <div className="task-copy">
-            <span className={`status-badge status-${task.status.toLowerCase()}`}>
-              {STATUS_LABELS[task.status]}
-            </span>
+            <div className="task-badges">
+              <span className={`status-badge status-${task.status.toLowerCase()}`}>
+                {STATUS_LABELS[task.status]}
+              </span>
+              <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
+                {PRIORITY_LABELS[task.priority]}
+              </span>
+            </div>
             <h2>{task.title}</h2>
             {task.description ? <p>{task.description}</p> : <p className="no-description">ไม่มีรายละเอียด</p>}
+            {task.tags.length > 0 ? (
+              <ul className="tag-list" aria-label="แท็ก">
+                {task.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <div className="task-dates">
             <time className="task-date" dateTime={task.createdAt}>

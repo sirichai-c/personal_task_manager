@@ -1,10 +1,14 @@
 import {
   DUE_DATE_FILTERS,
   PAGE_SIZE,
+  TASK_PRIORITIES,
+  TASK_SORTS,
   TASK_STATUSES,
   type DueDateFilter,
   type Task,
   type TaskList,
+  type TaskPriority,
+  type TaskSort,
   type TaskStatus,
 } from "../domain/task.js";
 import { NotFoundError, ValidationError } from "../errors.js";
@@ -63,6 +67,65 @@ function validateStatus(value: unknown): TaskStatus {
     throw new ValidationError("สถานะงานไม่ถูกต้อง", { status: "สถานะงานไม่ถูกต้อง" });
   }
   return value as TaskStatus;
+}
+
+function validatePriority(value: unknown): TaskPriority {
+  if (typeof value !== "string" || !TASK_PRIORITIES.includes(value as TaskPriority)) {
+    throw new ValidationError("ระดับความสำคัญไม่ถูกต้อง", {
+      priority: "ระดับความสำคัญไม่ถูกต้อง",
+    });
+  }
+  return value as TaskPriority;
+}
+
+function validateSort(value: unknown): TaskSort {
+  if (typeof value !== "string" || !TASK_SORTS.includes(value as TaskSort)) {
+    throw new ValidationError("ลำดับการแสดงผลไม่ถูกต้อง", {
+      sort: "ลำดับการแสดงผลไม่ถูกต้อง",
+    });
+  }
+  return value as TaskSort;
+}
+
+function validateTag(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new ValidationError("แท็กต้องเป็นข้อความ", { tags: "แท็กต้องเป็นข้อความ" });
+  }
+  const tag = value.trim();
+  if (textLength(tag) < 1 || textLength(tag) > 30 || tag.includes(",")) {
+    throw new ValidationError("แท็กต้องยาว 1–30 ตัวอักษรและไม่มีเครื่องหมายจุลภาค", {
+      tags: "แท็กต้องยาว 1–30 ตัวอักษรและไม่มีเครื่องหมายจุลภาค",
+    });
+  }
+  return tag;
+}
+
+function validateTags(value: unknown): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new ValidationError("แท็กต้องเป็นรายการข้อความ", {
+      tags: "แท็กต้องเป็นรายการข้อความ",
+    });
+  }
+  if (value.length > 10) {
+    throw new ValidationError("กำหนดแท็กได้ไม่เกิน 10 รายการ", {
+      tags: "กำหนดแท็กได้ไม่เกิน 10 รายการ",
+    });
+  }
+
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const item of value) {
+    const tag = validateTag(item);
+    const normalized = tag.toLocaleLowerCase("th-TH");
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      tags.push(tag);
+    }
+  }
+  return tags;
 }
 
 function validateDate(value: unknown, field: "dueDate" | "referenceDate"): string {
@@ -130,6 +193,9 @@ export class TaskService {
       description: validateDescription(record.description),
       status: "TODO",
       dueDate: validateDueDate(record.dueDate),
+      priority:
+        record.priority === undefined ? "NORMAL" : validatePriority(record.priority),
+      tags: validateTags(record.tags),
       now: this.now().toISOString(),
     });
   }
@@ -138,6 +204,9 @@ export class TaskService {
     search?: unknown;
     status?: unknown;
     dueDate?: unknown;
+    priority?: unknown;
+    tag?: unknown;
+    sort?: unknown;
     referenceDate?: unknown;
     page?: unknown;
   }): TaskList {
@@ -156,6 +225,10 @@ export class TaskService {
     const status = input.status === undefined ? undefined : validateStatus(input.status);
     const dueDate =
       input.dueDate === undefined ? undefined : validateDueDateFilter(input.dueDate);
+    const priority =
+      input.priority === undefined ? undefined : validatePriority(input.priority);
+    const tag = input.tag === undefined ? undefined : validateTag(input.tag);
+    const sort = input.sort === undefined ? "CREATED_DESC" : validateSort(input.sort);
     const referenceDate =
       input.referenceDate === undefined
         ? this.now().toISOString().slice(0, 10)
@@ -168,9 +241,12 @@ export class TaskService {
       referenceDate,
       weekStart: week.start,
       weekEnd: week.end,
+      sort,
       ...(search ? { search } : {}),
       ...(status ? { status } : {}),
       ...(dueDate ? { dueDate } : {}),
+      ...(priority ? { priority } : {}),
+      ...(tag ? { tag } : {}),
     });
 
     return {
@@ -191,9 +267,14 @@ export class TaskService {
       throw new NotFoundError();
     }
 
-    const hasEditableField = ["title", "description", "status", "dueDate"].some((field) =>
-      Object.hasOwn(record, field),
-    );
+    const hasEditableField = [
+      "title",
+      "description",
+      "status",
+      "dueDate",
+      "priority",
+      "tags",
+    ].some((field) => Object.hasOwn(record, field));
     if (!hasEditableField) {
       throw new ValidationError("กรุณาระบุข้อมูลที่ต้องการแก้ไข");
     }
@@ -209,6 +290,10 @@ export class TaskService {
       dueDate: Object.hasOwn(record, "dueDate")
         ? validateDueDate(record.dueDate)
         : current.dueDate,
+      priority: Object.hasOwn(record, "priority")
+        ? validatePriority(record.priority)
+        : current.priority,
+      tags: Object.hasOwn(record, "tags") ? validateTags(record.tags) : current.tags,
       now: this.now().toISOString(),
     });
 

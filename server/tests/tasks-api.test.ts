@@ -78,6 +78,8 @@ async function createTask(
   title: string,
   description = "",
   dueDate?: string | null,
+  priority?: "LOW" | "NORMAL" | "HIGH",
+  tags?: string[],
 ) {
   return request<{
     item: {
@@ -86,6 +88,8 @@ async function createTask(
       description: string;
       status: string;
       dueDate: string | null;
+      priority: string;
+      tags: string[];
     };
   }>(
     server,
@@ -96,6 +100,8 @@ async function createTask(
         title,
         description,
         ...(dueDate !== undefined ? { dueDate } : {}),
+        ...(priority !== undefined ? { priority } : {}),
+        ...(tags !== undefined ? { tags } : {}),
       }),
     },
   );
@@ -124,6 +130,8 @@ describe("tasks API", () => {
       description: "สรุปประจำสัปดาห์",
       status: "TODO",
       dueDate: null,
+      priority: "NORMAL",
+      tags: [],
     });
   });
 
@@ -140,6 +148,10 @@ describe("tasks API", () => {
     [{ title: "ก".repeat(121) }, "title"],
     [{ title: "งาน", description: "ก".repeat(2_001) }, "description"],
     [{ title: "งาน", dueDate: "2026-02-30" }, "dueDate"],
+    [{ title: "งาน", priority: "URGENT" }, "priority"],
+    [{ title: "งาน", tags: "ด่วน" }, "tags"],
+    [{ title: "งาน", tags: Array.from({ length: 11 }, (_, index) => `แท็ก ${index}`) }, "tags"],
+    [{ title: "งาน", tags: ["ก".repeat(31)] }, "tags"],
   ])("rejects invalid create input %#", async (payload, field) => {
     const server = await startServer();
     const response = await request<{ error: { fields: Record<string, string> } }>(
@@ -150,6 +162,33 @@ describe("tasks API", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.fields[field]).toBeTruthy();
+  });
+
+  it("creates and edits priority and normalized unique tags", async () => {
+    const server = await startServer();
+    const created = await createTask(
+      server,
+      "เตรียมประชุม",
+      "",
+      null,
+      "HIGH",
+      [" งาน ", "Work", "work", "ด่วน"],
+    );
+
+    expect(created.status).toBe(201);
+    expect(created.body.item.priority).toBe("HIGH");
+    expect(created.body.item.tags).toHaveLength(3);
+    expect(created.body.item.tags).toEqual(expect.arrayContaining(["งาน", "Work", "ด่วน"]));
+
+    const updated = await request<{
+      item: { priority: string; tags: string[] };
+    }>(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ priority: "LOW", tags: ["ส่วนตัว"] }),
+    });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.item).toMatchObject({ priority: "LOW", tags: ["ส่วนตัว"] });
   });
 
   it("rejects an invalid status", async () => {
@@ -213,6 +252,97 @@ describe("tasks API", () => {
     expect(response.body.pagination.totalItems).toBe(1);
   });
 
+  it("combines search, status, priority, and exact tag filters", async () => {
+    const server = await startServer();
+    const matching = await createTask(
+      server,
+      "ตรวจรายงานด่วน",
+      "",
+      null,
+      "HIGH",
+      ["ลูกค้า", "ด่วน"],
+    );
+    const wrongPriority = await createTask(
+      server,
+      "ตรวจรายงานทั่วไป",
+      "",
+      null,
+      "NORMAL",
+      ["ด่วน"],
+    );
+    await createTask(server, "โทรหาลูกค้า", "", null, "HIGH", ["ด่วน"]);
+    for (const id of [matching.body.item.id, wrongPriority.body.item.id]) {
+      await request(server, `/api/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "DONE" }),
+      });
+    }
+
+    const query = new URLSearchParams({
+      search: "รายงาน",
+      status: "DONE",
+      priority: "HIGH",
+      tag: "ด่วน",
+    });
+    const response = await request<{
+      items: Array<{ id: number }>;
+      pagination: { totalItems: number };
+    }>(server, `/api/tasks?${query.toString()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((item) => item.id)).toEqual([matching.body.item.id]);
+    expect(response.body.pagination.totalItems).toBe(1);
+  });
+
+  it("sorts by creation, update, due date, and priority with stable tie-breakers", async () => {
+    let currentTime = "2026-09-30T08:00:00.000Z";
+    const server = await startServer(
+      join(testDirectory, "sorting.sqlite"),
+      () => new Date(currentTime),
+    );
+    const normal = await createTask(server, "ปกติไม่มีวัน", "", null, "NORMAL");
+    currentTime = "2026-09-30T09:00:00.000Z";
+    const low = await createTask(server, "ต่ำใกล้สุด", "", "2026-10-05", "LOW");
+    currentTime = "2026-09-30T10:00:00.000Z";
+    const high = await createTask(server, "สูงถัดไป", "", "2026-10-10", "HIGH");
+
+    const listIds = async (sort: string) => {
+      const response = await request<{ items: Array<{ id: number }> }>(
+        server,
+        `/api/tasks?sort=${sort}`,
+      );
+      expect(response.status).toBe(200);
+      return response.body.items.map((item) => item.id);
+    };
+
+    await expect(listIds("CREATED_DESC")).resolves.toEqual([
+      high.body.item.id,
+      low.body.item.id,
+      normal.body.item.id,
+    ]);
+    await expect(listIds("DUE_ASC")).resolves.toEqual([
+      low.body.item.id,
+      high.body.item.id,
+      normal.body.item.id,
+    ]);
+    await expect(listIds("PRIORITY_DESC")).resolves.toEqual([
+      high.body.item.id,
+      normal.body.item.id,
+      low.body.item.id,
+    ]);
+
+    currentTime = "2026-09-30T11:00:00.000Z";
+    await request(server, `/api/tasks/${normal.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "แก้ไขล่าสุด" }),
+    });
+    await expect(listIds("UPDATED_DESC")).resolves.toEqual([
+      normal.body.item.id,
+      high.body.item.id,
+      low.body.item.id,
+    ]);
+  });
+
   it("filters due dates using a Monday-to-Sunday week and excludes completed overdue work", async () => {
     const databasePath = join(testDirectory, "due-date-filters.sqlite");
     const server = await startServer(databasePath, () => new Date("2026-09-30T12:00:00.000Z"));
@@ -254,6 +384,9 @@ describe("tasks API", () => {
   it.each([
     ["dueDate=NEXT_MONTH", "dueDate"],
     ["dueDate=TODAY&referenceDate=2026-02-30", "referenceDate"],
+    ["priority=URGENT", "priority"],
+    ["sort=TITLE_ASC", "sort"],
+    ["tag=%20", "tags"],
   ])("rejects invalid due-date query %#", async (query, field) => {
     const server = await startServer();
     const response = await request<{ error: { fields: Record<string, string> } }>(
@@ -317,7 +450,7 @@ describe("tasks API", () => {
 
   it("deletes an existing task", async () => {
     const server = await startServer();
-    const created = await createTask(server, "งานที่จะลบ");
+    const created = await createTask(server, "งานที่จะลบ", "", null, "NORMAL", ["ชั่วคราว"]);
     const deletion = await request(server, `/api/tasks/${created.body.item.id}`, {
       method: "DELETE",
     });
@@ -329,23 +462,41 @@ describe("tasks API", () => {
     expect(deletion.status).toBe(204);
     expect(list.body.items).toHaveLength(0);
     expect(list.body.pagination.totalItems).toBe(0);
+    const remainingTags = server.application.database
+      .prepare("SELECT COUNT(*) AS count FROM tags")
+      .get() as { count: number };
+    expect(remainingTags.count).toBe(0);
   });
 
   it("keeps tasks after the database is closed and reopened", async () => {
     const databasePath = join(testDirectory, "persistent.sqlite");
     const firstServer = await startServer(databasePath);
-    const created = await createTask(firstServer, "งานที่ต้องอยู่ต่อ");
+    const created = await createTask(
+      firstServer,
+      "งานที่ต้องอยู่ต่อ",
+      "",
+      null,
+      "HIGH",
+      ["ถาวร"],
+    );
     await stopServer(firstServer);
 
     const restartedServer = await startServer(databasePath);
-    const list = await request<{ items: Array<{ id: number; title: string }> }>(
+    const list = await request<{
+      items: Array<{ id: number; title: string; priority: string; tags: string[] }>;
+    }>(
       restartedServer,
       "/api/tasks",
     );
 
     expect(list.status).toBe(200);
     expect(list.body.items).toContainEqual(
-      expect.objectContaining({ id: created.body.item.id, title: "งานที่ต้องอยู่ต่อ" }),
+      expect.objectContaining({
+        id: created.body.item.id,
+        title: "งานที่ต้องอยู่ต่อ",
+        priority: "HIGH",
+        tags: ["ถาวร"],
+      }),
     );
   });
 
@@ -376,7 +527,14 @@ describe("tasks API", () => {
     legacyDatabase.close();
 
     const server = await startServer(databasePath);
-    const list = await request<{ items: Array<{ title: string; dueDate: string | null }> }>(
+    const list = await request<{
+      items: Array<{
+        title: string;
+        dueDate: string | null;
+        priority: string;
+        tags: string[];
+      }>;
+    }>(
       server,
       "/api/tasks",
     );
@@ -386,8 +544,13 @@ describe("tasks API", () => {
 
     expect(list.status).toBe(200);
     expect(list.body.items).toContainEqual(
-      expect.objectContaining({ title: "งานจาก schema เดิม", dueDate: null }),
+      expect.objectContaining({
+        title: "งานจาก schema เดิม",
+        dueDate: null,
+        priority: "NORMAL",
+        tags: [],
+      }),
     );
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
   });
 });

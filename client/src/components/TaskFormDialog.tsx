@@ -7,7 +7,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { ApiError } from "../api/tasks";
-import type { Task, TaskInput, TaskStatus } from "../types";
+import type { Task, TaskInput, TaskPriority, TaskStatus } from "../types";
 
 interface TaskFormDialogProps {
   task: Task | null;
@@ -15,7 +15,14 @@ interface TaskFormDialogProps {
   onSave: (input: TaskInput) => Promise<void>;
 }
 
-const EMPTY_FORM: TaskInput = { title: "", description: "", status: "TODO", dueDate: "" };
+const EMPTY_FORM: TaskInput = {
+  title: "",
+  description: "",
+  status: "TODO",
+  dueDate: "",
+  priority: "NORMAL",
+  tags: [],
+};
 
 export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -24,6 +31,8 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const descriptionId = useId();
   const dueDateId = useId();
   const statusId = useId();
+  const priorityId = useId();
+  const tagsId = useId();
   const [form, setForm] = useState<TaskInput>(() =>
     task
       ? {
@@ -31,9 +40,12 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
           description: task.description,
           status: task.status,
           dueDate: task.dueDate ?? "",
+          priority: task.priority,
+          tags: task.tags,
         }
       : EMPTY_FORM,
   );
+  const [tagsDraft, setTagsDraft] = useState(() => task?.tags.join(", ") ?? "");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -58,7 +70,13 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
     setFieldErrors({});
     setFormError("");
     try {
-      await onSave(form);
+      await onSave({
+        ...form,
+        tags: tagsDraft
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
     } catch (error) {
       if (error instanceof ApiError) {
         setFieldErrors(error.fields);
@@ -181,6 +199,57 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
           {fieldErrors.dueDate ? (
             <span id={`${dueDateId}-error`} className="field-error">
               {fieldErrors.dueDate}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <label htmlFor={priorityId}>ความสำคัญ</label>
+          <select
+            id={priorityId}
+            name="priority"
+            value={form.priority}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                priority: event.target.value as TaskPriority,
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.priority)}
+            aria-describedby={fieldErrors.priority ? `${priorityId}-error` : undefined}
+          >
+            <option value="LOW">ต่ำ</option>
+            <option value="NORMAL">ปกติ</option>
+            <option value="HIGH">สูง</option>
+          </select>
+          {fieldErrors.priority ? (
+            <span id={`${priorityId}-error`} className="field-error">
+              {fieldErrors.priority}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <div className="field-label-row">
+            <label htmlFor={tagsId}>แท็ก</label>
+            <span>ไม่เกิน 10 แท็ก</span>
+          </div>
+          <input
+            id={tagsId}
+            name="tags"
+            value={tagsDraft}
+            onChange={(event) => setTagsDraft(event.target.value)}
+            maxLength={319}
+            aria-invalid={Boolean(fieldErrors.tags)}
+            aria-describedby={fieldErrors.tags ? `${tagsId}-error` : `${tagsId}-hint`}
+            placeholder="เช่น งาน, ด่วน, ส่วนตัว"
+          />
+          <span id={`${tagsId}-hint`} className="field-hint">
+            คั่นแต่ละแท็กด้วยจุลภาค และยาวไม่เกิน 30 ตัวอักษรต่อแท็ก
+          </span>
+          {fieldErrors.tags ? (
+            <span id={`${tagsId}-error`} className="field-error">
+              {fieldErrors.tags}
             </span>
           ) : null}
         </div>

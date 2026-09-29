@@ -1,9 +1,11 @@
 import type {
   DueDateFilter,
+  PriorityFilter,
   StatusFilter,
   Task,
   TaskInput,
   TaskListResponse,
+  TaskSort,
 } from "../types";
 
 interface ApiErrorPayload {
@@ -62,6 +64,9 @@ export function getTasks(
     search: string;
     status: StatusFilter;
     dueDate: DueDateFilter;
+    priority: PriorityFilter;
+    tag: string;
+    sort: TaskSort;
     referenceDate: string;
     page: number;
   },
@@ -78,6 +83,13 @@ export function getTasks(
     parameters.set("dueDate", input.dueDate);
     parameters.set("referenceDate", input.referenceDate);
   }
+  if (input.priority) {
+    parameters.set("priority", input.priority);
+  }
+  if (input.tag) {
+    parameters.set("tag", input.tag);
+  }
+  parameters.set("sort", input.sort);
   return request<TaskListResponse>(`/api/tasks?${parameters.toString()}`, { signal });
 }
 
@@ -88,6 +100,8 @@ export async function createTask(input: TaskInput): Promise<Task> {
       title: input.title,
       description: input.description,
       dueDate: input.dueDate || null,
+      priority: input.priority,
+      tags: input.tags,
     }),
   });
   return response.item;
