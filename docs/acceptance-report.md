@@ -26,7 +26,12 @@
 
 Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: load error/retry, create, edit, search, filter, cancel delete, confirm delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
 
+## Production deployment smoke test
+
+Railway deployment จาก GitHub commit `e35cf98` สำเร็จบน Node.js 24.21.0 และเปิดที่ <https://personal-task-manager-production-57d2.up.railway.app> ทดสอบผ่าน browser จริงแล้วว่า `/api/health` ตอบ `{ "status": "ok" }`, UI เพิ่มงาน แก้สถานะ ค้นหาและกรองพร้อมกัน ยกเลิกการลบ และยืนยันการลบได้ ข้อมูลทดสอบยังอยู่หลัง Railway service restart ซึ่งยืนยันการใช้ SQLite บน persistent volume `/app/data`; หลังตรวจเสร็จได้ลบข้อมูล smoke test ออกจาก production แล้ว
+
 ## ข้อจำกัดของหลักฐาน
 
 - ทดสอบ browser ด้วย Google Chrome บน Windows เครื่องนี้ ไม่ได้ทำ cross-browser matrix
 - ทดสอบ performance ในเครื่องเดียวและผู้ใช้เดียว ไม่ได้ทดสอบ concurrency หรือ network จริง
+- Production deployment ไม่มี authentication ตามการยืนยันของผู้ใช้ ผู้ที่ทราบ URL จึงเข้าถึงและแก้ไขข้อมูลได้

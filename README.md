@@ -96,4 +96,24 @@ scripts/                   browser smoke test
 docs/                      แผน รายงาน AC และผล performance
 ```
 
-ระบบนี้ตั้งใจให้ใช้คนเดียวบน localhost ไม่มี authentication และไม่ควรนำไปเปิด public network โดยไม่เพิ่มมาตรการความปลอดภัยที่เหมาะสม
+## Deploy บน Railway
+
+ระบบ production ที่ deploy แล้ว:
+
+- แอป: <https://personal-task-manager-production-57d2.up.railway.app>
+- Health check: <https://personal-task-manager-production-57d2.up.railway.app/api/health>
+- Source: GitHub repository `sirichai-c/personal_task_manager`, branch `main`
+- ฐานข้อมูล: SQLite ที่ `/app/data/tasks.sqlite` บน Railway persistent volume ซึ่ง mount ที่ `/app/data`
+
+ขั้นตอนแบบเข้าใจง่ายสำหรับสร้าง deployment ใหม่:
+
+1. Push โค้ดขึ้น GitHub และสร้าง Railway project กับ empty service
+2. ตั้งตัวแปรของ service เป็น `HOST=0.0.0.0`, `NODE_ENV=production` และ `TASK_DB_PATH=/app/data/tasks.sqlite` โดยไม่ต้องกำหนด `PORT` เพราะ Railway ส่งค่าให้แอปเอง
+3. สร้าง persistent volume แล้ว mount ที่ `/app/data` ก่อนเริ่มใช้งานจริง มิฉะนั้นไฟล์ SQLite จะอยู่ในพื้นที่ชั่วคราวของ container
+4. เชื่อม source ของ service กับ repository `sirichai-c/personal_task_manager` และ branch `main`
+5. Railway ตรวจพบ Node.js และใช้ scripts ใน `package.json`: build ด้วย `npm run build` และเริ่มระบบด้วย `npm start`
+6. สร้าง Railway domain แล้วเปิด `/api/health`; ผลที่พร้อมใช้งานต้องเป็น `{ "status": "ok" }`
+
+หลังตั้งค่าครั้งแรก การ push commit ใหม่ไปที่ `main` จะ trigger build และ deploy อัตโนมัติ ตรวจ deployment log ให้สำเร็จก่อนใช้งานทุกครั้ง ส่วน volume จะไม่ถูกแทนที่พร้อม container จึงรักษาฐานข้อมูลข้าม restart และ deploy ได้
+
+deployment นี้เป็น URL สาธารณะและไม่มี authentication ตามขอบเขตที่ยืนยันไว้ ผู้ที่ทราบ URL สามารถอ่าน แก้ไข และลบงานได้ อีกทั้ง Railway และ persistent volume อาจมีค่าใช้จ่ายตามแผนบัญชี ควรตรวจ Usage/Billing ใน Railway dashboard และไม่บันทึกข้อมูลลับในระบบนี้
