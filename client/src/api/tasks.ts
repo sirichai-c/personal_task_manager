@@ -1,4 +1,10 @@
-import type { StatusFilter, Task, TaskInput, TaskListResponse } from "../types";
+import type {
+  DueDateFilter,
+  StatusFilter,
+  Task,
+  TaskInput,
+  TaskListResponse,
+} from "../types";
 
 interface ApiErrorPayload {
   error?: {
@@ -52,7 +58,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getTasks(
-  input: { search: string; status: StatusFilter; page: number },
+  input: {
+    search: string;
+    status: StatusFilter;
+    dueDate: DueDateFilter;
+    referenceDate: string;
+    page: number;
+  },
   signal: AbortSignal,
 ): Promise<TaskListResponse> {
   const parameters = new URLSearchParams({ page: String(input.page) });
@@ -62,13 +74,21 @@ export function getTasks(
   if (input.status) {
     parameters.set("status", input.status);
   }
+  if (input.dueDate) {
+    parameters.set("dueDate", input.dueDate);
+    parameters.set("referenceDate", input.referenceDate);
+  }
   return request<TaskListResponse>(`/api/tasks?${parameters.toString()}`, { signal });
 }
 
 export async function createTask(input: TaskInput): Promise<Task> {
   const response = await request<{ item: Task }>("/api/tasks", {
     method: "POST",
-    body: JSON.stringify({ title: input.title, description: input.description }),
+    body: JSON.stringify({
+      title: input.title,
+      description: input.description,
+      dueDate: input.dueDate || null,
+    }),
   });
   return response.item;
 }
@@ -76,7 +96,7 @@ export async function createTask(input: TaskInput): Promise<Task> {
 export async function updateTask(id: number, input: TaskInput): Promise<Task> {
   const response = await request<{ item: Task }>(`/api/tasks/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, dueDate: input.dueDate || null }),
   });
   return response.item;
 }
@@ -84,4 +104,3 @@ export async function updateTask(id: number, input: TaskInput): Promise<Task> {
 export function deleteTask(id: number): Promise<void> {
   return request<void>(`/api/tasks/${id}`, { method: "DELETE" });
 }
-

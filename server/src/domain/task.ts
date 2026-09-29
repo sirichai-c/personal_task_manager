@@ -1,12 +1,15 @@
 export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE"] as const;
+export const DUE_DATE_FILTERS = ["TODAY", "THIS_WEEK", "OVERDUE", "NO_DATE"] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type DueDateFilter = (typeof DUE_DATE_FILTERS)[number];
 
 export interface Task {
   id: number;
   title: string;
   description: string;
   status: TaskStatus;
+  dueDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,4 +25,3 @@ export interface TaskList {
 }
 
 export const PAGE_SIZE = 20;
-

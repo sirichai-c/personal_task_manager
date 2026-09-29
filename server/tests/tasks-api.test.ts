@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApplication, type ApplicationHandle } from "../src/app.js";
 
@@ -21,8 +22,11 @@ interface ApiResponse<T> {
 let testDirectory: string;
 let runningServers: TestServer[];
 
-async function startServer(databasePath = join(testDirectory, "tasks.sqlite")): Promise<TestServer> {
-  const application = createApplication({ databasePath });
+async function startServer(
+  databasePath = join(testDirectory, "tasks.sqlite"),
+  now?: () => Date,
+): Promise<TestServer> {
+  const application = createApplication({ databasePath, ...(now ? { now } : {}) });
   const server = application.app.listen(0, "127.0.0.1");
   if (!server.listening) {
     await once(server, "listening");
@@ -69,13 +73,30 @@ async function request<T>(
   return { status: response.status, body: body as T };
 }
 
-async function createTask(server: TestServer, title: string, description = "") {
-  return request<{ item: { id: number; title: string; description: string; status: string } }>(
+async function createTask(
+  server: TestServer,
+  title: string,
+  description = "",
+  dueDate?: string | null,
+) {
+  return request<{
+    item: {
+      id: number;
+      title: string;
+      description: string;
+      status: string;
+      dueDate: string | null;
+    };
+  }>(
     server,
     "/api/tasks",
     {
       method: "POST",
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({
+        title,
+        description,
+        ...(dueDate !== undefined ? { dueDate } : {}),
+      }),
     },
   );
 }
@@ -102,13 +123,23 @@ describe("tasks API", () => {
       title: "เตรียมรายงาน",
       description: "สรุปประจำสัปดาห์",
       status: "TODO",
+      dueDate: null,
     });
+  });
+
+  it("creates a task with an optional due date", async () => {
+    const server = await startServer();
+    const response = await createTask(server, "ส่งรายงาน", "", "2026-10-05");
+
+    expect(response.status).toBe(201);
+    expect(response.body.item.dueDate).toBe("2026-10-05");
   });
 
   it.each([
     [{ title: "   " }, "title"],
     [{ title: "ก".repeat(121) }, "title"],
     [{ title: "งาน", description: "ก".repeat(2_001) }, "description"],
+    [{ title: "งาน", dueDate: "2026-02-30" }, "dueDate"],
   ])("rejects invalid create input %#", async (payload, field) => {
     const server = await startServer();
     const response = await request<{ error: { fields: Record<string, string> } }>(
@@ -182,13 +213,67 @@ describe("tasks API", () => {
     expect(response.body.pagination.totalItems).toBe(1);
   });
 
-  it("edits all fields and allows status to move backwards", async () => {
+  it("filters due dates using a Monday-to-Sunday week and excludes completed overdue work", async () => {
+    const databasePath = join(testDirectory, "due-date-filters.sqlite");
+    const server = await startServer(databasePath, () => new Date("2026-09-30T12:00:00.000Z"));
+    const today = await createTask(server, "ครบวันนี้", "", "2026-09-30");
+    const week = await createTask(server, "ครบปลายสัปดาห์", "", "2026-10-04");
+    const overdue = await createTask(server, "งานเกินกำหนด", "", "2026-09-29");
+    const completedOverdue = await createTask(server, "งานเก่าที่เสร็จแล้ว", "", "2026-09-28");
+    const withoutDate = await createTask(server, "งานไม่กำหนดวัน");
+    await request(server, `/api/tasks/${completedOverdue.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "DONE" }),
+    });
+
+    const listIds = async (query: string) => {
+      const response = await request<{ items: Array<{ id: number }> }>(
+        server,
+        `/api/tasks?${query}`,
+      );
+      expect(response.status).toBe(200);
+      return response.body.items.map((item) => item.id);
+    };
+
+    await expect(listIds("dueDate=TODAY")).resolves.toEqual([today.body.item.id]);
+    await expect(listIds("dueDate=THIS_WEEK")).resolves.toEqual([
+      completedOverdue.body.item.id,
+      overdue.body.item.id,
+      week.body.item.id,
+      today.body.item.id,
+    ]);
+    await expect(listIds("dueDate=OVERDUE")).resolves.toEqual([overdue.body.item.id]);
+    await expect(listIds("dueDate=NO_DATE")).resolves.toEqual([withoutDate.body.item.id]);
+    await expect(
+      listIds(
+        "search=%E0%B9%80%E0%B8%81%E0%B8%B4%E0%B8%99&status=TODO&dueDate=OVERDUE&referenceDate=2026-09-30",
+      ),
+    ).resolves.toEqual([overdue.body.item.id]);
+  });
+
+  it.each([
+    ["dueDate=NEXT_MONTH", "dueDate"],
+    ["dueDate=TODAY&referenceDate=2026-02-30", "referenceDate"],
+  ])("rejects invalid due-date query %#", async (query, field) => {
+    const server = await startServer();
+    const response = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      `/api/tasks?${query}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields[field]).toBeTruthy();
+  });
+
+  it("edits all fields, clears a due date, and allows status to move backwards", async () => {
     const server = await startServer();
     const created = await createTask(server, "งานเดิม");
     const id = created.body.item.id;
 
     for (const status of ["IN_PROGRESS", "DONE", "TODO"]) {
-      const response = await request<{ item: { title: string; description: string; status: string } }>(
+      const response = await request<{
+        item: { title: string; description: string; status: string; dueDate: string | null };
+      }>(
         server,
         `/api/tasks/${id}`,
         {
@@ -197,12 +282,22 @@ describe("tasks API", () => {
             title: "งานที่แก้แล้ว",
             description: "รายละเอียดใหม่",
             status,
+            dueDate: "2026-10-05",
           }),
         },
       );
       expect(response.status).toBe(200);
       expect(response.body.item.status).toBe(status);
+      expect(response.body.item.dueDate).toBe("2026-10-05");
     }
+
+    const cleared = await request<{ item: { dueDate: string | null } }>(
+      server,
+      `/api/tasks/${id}`,
+      { method: "PATCH", body: JSON.stringify({ dueDate: null }) },
+    );
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.item.dueDate).toBeNull();
   });
 
   it("returns 404 for an unknown id without a stack trace", async () => {
@@ -253,5 +348,46 @@ describe("tasks API", () => {
       expect.objectContaining({ id: created.body.item.id, title: "งานที่ต้องอยู่ต่อ" }),
     );
   });
-});
 
+  it("migrates an existing version-1 database without losing tasks", async () => {
+    const databasePath = join(testDirectory, "legacy.sqlite");
+    const legacyDatabase = new DatabaseSync(databasePath);
+    legacyDatabase.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO schema_migrations (version, applied_at)
+        VALUES (1, '2026-09-29T00:00:00.000Z');
+      CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL
+          CHECK (length(title) BETWEEN 1 AND 120 AND title = trim(title)),
+        description TEXT NOT NULL DEFAULT ''
+          CHECK (length(description) <= 2000),
+        status TEXT NOT NULL DEFAULT 'TODO'
+          CHECK (status IN ('TODO', 'IN_PROGRESS', 'DONE')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO tasks (title, description, status, created_at, updated_at)
+        VALUES ('งานจาก schema เดิม', '', 'TODO', '2026-09-29T00:00:00.000Z', '2026-09-29T00:00:00.000Z');
+    `);
+    legacyDatabase.close();
+
+    const server = await startServer(databasePath);
+    const list = await request<{ items: Array<{ title: string; dueDate: string | null }> }>(
+      server,
+      "/api/tasks",
+    );
+    const migrations = server.application.database
+      .prepare("SELECT version FROM schema_migrations ORDER BY version")
+      .all() as Array<{ version: number }>;
+
+    expect(list.status).toBe(200);
+    expect(list.body.items).toContainEqual(
+      expect.objectContaining({ title: "งานจาก schema เดิม", dueDate: null }),
+    );
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2]);
+  });
+});

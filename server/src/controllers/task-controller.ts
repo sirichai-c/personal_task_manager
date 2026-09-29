@@ -22,6 +22,8 @@ export class TaskController {
         this.service.list({
           search: request.query.search,
           status: request.query.status,
+          dueDate: request.query.dueDate,
+          referenceDate: request.query.referenceDate,
           page: request.query.page,
         }),
       );

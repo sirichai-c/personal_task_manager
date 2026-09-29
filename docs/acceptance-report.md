@@ -4,11 +4,11 @@
 
 | AC | สถานะ | หลักฐานที่รันจริง |
 | --- | --- | --- |
-| AC-01 เพิ่มงาน | ผ่าน | API test สร้างงาน ตัดช่องว่าง และได้ `TODO`; browser test เพิ่มจาก UI ถึง SQLite |
-| AC-02 ตรวจข้อมูล | ผ่าน | API tests ปฏิเสธ title ว่าง/121 ตัว, description 2,001 ตัว และ status ผิดด้วย 400 |
+| AC-01 เพิ่มงาน | ผ่าน | API test สร้างงาน ตัดช่องว่าง รับวันครบกำหนดที่ไม่บังคับ และได้ `TODO`; browser test เพิ่มจาก UI ถึง SQLite |
+| AC-02 ตรวจข้อมูล | ผ่าน | API tests ปฏิเสธ title ว่าง/121 ตัว, description 2,001 ตัว, วันที่ไม่มีอยู่จริง และ status ผิดด้วย 400 |
 | AC-03 รายการและลำดับ | ผ่าน | API test สร้าง 25 งาน ตรวจล่าสุดก่อน หน้าแรก 20 และหน้าสอง 5 |
-| AC-04 ค้นหาและกรอง | ผ่าน | API integration และ browser test ใช้ title search + `DONE` พร้อมกัน |
-| AC-05 แก้ไข | ผ่าน | API test เปลี่ยน `IN_PROGRESS → DONE → TODO`; browser test แก้ทุก field |
+| AC-04 ค้นหาและกรอง | ผ่าน | API integration และ browser test ใช้ title search + status + due-date filter พร้อมกัน |
+| AC-05 แก้ไข | ผ่าน | API test เปลี่ยน `IN_PROGRESS → DONE → TODO`, ตั้ง/ล้างวันครบกำหนด; browser test แก้ทุก field |
 | AC-06 ลบอย่างปลอดภัย | ผ่าน | browser test กดยกเลิกแล้วงานยังอยู่ จากนั้นยืนยันลบและได้ HTTP 204 |
 | AC-07 ไม่พบข้อมูล | ผ่าน | API tests PATCH/DELETE id ที่ไม่มีอยู่ได้ 404 และ response ไม่มี stack |
 | AC-08 ความถาวร | ผ่าน | integration test ปิด database/server handle แล้วเปิดไฟล์เดิมและอ่านงานได้ |
@@ -17,14 +17,15 @@
 | AC-11 สถานะ UI | ผ่าน | browser test ตรวจ empty, load error + retry, mutation error และ success toast; loading skeleton อยู่ใน initial fetch path |
 | AC-12 ฟอร์ม/accessibility | ผ่าน | browser test ยืนยัน focus ชื่องานหลังเปิด dialog, cancel dialog, disabled ระหว่าง submit และรักษาค่าหลังจำลอง 500 |
 | AC-13 การเชื่อมจริง | ผ่าน | production browser test ใช้ React → Express → SQLite แยก; ไม่มี mock ในเส้นทางสำเร็จ |
-| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 11 tests ผ่าน ครอบคลุม validation/CRUD/search/filter/pagination/404/persistence |
+| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 17 tests ผ่าน ครอบคลุม validation/CRUD/search/filter/due date/migration/pagination/404/persistence |
 | AC-15 ประสิทธิภาพ | ผ่าน | `npm run performance`: 5,000 rows, 20 requests/scenario; ดู `docs/performance-report.md` |
 | AC-16 คุณภาพ build | ผ่าน | `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` ผ่านจริง |
 | AC-17 การส่งมอบ | ผ่าน | README, `.env.example`, lockfile, database init/run/test instructions และ URL ครบ |
+| AC-18 วันครบกำหนด | ผ่าน | API และ browser tests ครอบคลุมวันนี้ สัปดาห์จันทร์–อาทิตย์ เกินกำหนด ไม่กำหนดวัน และไม่จัด `DONE` เป็น overdue |
 
 ## Browser smoke test
 
-Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: load error/retry, create, edit, search, filter, cancel delete, confirm delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
+Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: due date/overdue filter, load error/retry, create, edit, search, status filter, cancel delete, confirm delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
 
 ## Production deployment smoke test
 

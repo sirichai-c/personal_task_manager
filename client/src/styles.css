@@ -182,7 +182,7 @@ button:disabled {
 
 .filter-bar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) 190px auto auto;
+  grid-template-columns: minmax(220px, 1fr) 155px 180px auto auto;
   align-items: end;
   gap: 12px;
   padding: 24px;
@@ -192,6 +192,7 @@ button:disabled {
 
 .search-field,
 .status-field,
+.due-date-field,
 .field {
   display: grid;
   gap: 7px;
@@ -200,6 +201,7 @@ button:disabled {
 
 .search-field label,
 .status-field label,
+.due-date-field label,
 .field label,
 .field-label-row {
   color: #354159;
@@ -346,7 +348,7 @@ select[aria-invalid="true"] {
 
 .task-row {
   display: grid;
-  grid-template-columns: 6px minmax(0, 1fr) 185px 112px;
+  grid-template-columns: 6px minmax(0, 1fr) 210px 112px;
   align-items: center;
   gap: 18px;
   min-height: 120px;
@@ -434,10 +436,33 @@ select[aria-invalid="true"] {
   background: var(--success-soft);
 }
 
-.task-date {
+.task-dates {
+  display: grid;
+  gap: 4px;
+}
+
+.task-date,
+.due-date {
   color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.due-date {
+  font-weight: 650;
+}
+
+.due-date-today {
+  color: var(--cobalt);
+}
+
+.due-date-overdue {
+  color: var(--danger);
+}
+
+.due-date-empty {
+  color: #8a95a8;
+  font-weight: 500;
 }
 
 .task-actions {
@@ -748,7 +773,7 @@ select[aria-invalid="true"] {
 
 @media (max-width: 860px) {
   .filter-bar {
-    grid-template-columns: minmax(0, 1fr) 170px auto;
+    grid-template-columns: minmax(0, 1fr) 145px 170px auto;
   }
 
   .clear-button {
@@ -761,7 +786,7 @@ select[aria-invalid="true"] {
     grid-template-columns: 6px minmax(0, 1fr) 104px;
   }
 
-  .task-date {
+  .task-dates {
     grid-column: 2;
   }
 
@@ -816,7 +841,7 @@ select[aria-invalid="true"] {
   }
 
   .filter-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     padding: 18px;
   }
 
@@ -824,8 +849,14 @@ select[aria-invalid="true"] {
     grid-column: 1 / -1;
   }
 
-  .status-field {
+  .status-field,
+  .due-date-field {
     min-width: 0;
+  }
+
+  .search-button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .clear-button {
@@ -844,13 +875,9 @@ select[aria-invalid="true"] {
   }
 
   .task-copy,
-  .task-date,
+  .task-dates,
   .task-actions {
     grid-column: 2;
-  }
-
-  .task-date {
-    grid-row: auto;
   }
 
   .task-actions {
@@ -904,7 +931,6 @@ select[aria-invalid="true"] {
   }
 
   .filter-bar {
-    grid-template-columns: minmax(0, 1fr) 82px;
     gap: 10px;
   }
 }

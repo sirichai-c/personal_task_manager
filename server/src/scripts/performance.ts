@@ -55,6 +55,7 @@ try {
         title: index % 10 === 0 ? `รายงานประจำวัน ${index}` : `งานตัวอย่าง ${index}`,
         description: `ข้อมูลทดสอบลำดับที่ ${index}`,
         status: statuses[index % statuses.length] ?? "TODO",
+        dueDate: null,
         now: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
       });
     }

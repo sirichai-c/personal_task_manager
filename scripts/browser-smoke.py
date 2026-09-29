@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from pathlib import Path
 
 from playwright.sync_api import Route, expect, sync_playwright
@@ -6,6 +7,8 @@ from playwright.sync_api import Route, expect, sync_playwright
 BASE_URL = "http://127.0.0.1:3000"
 CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 ARTIFACTS = Path(".test-artifacts")
+TODAY = date.today().isoformat()
+YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
 
 
 def assert_no_horizontal_overflow(page, label: str) -> None:
@@ -72,6 +75,7 @@ with sync_playwright() as playwright:
     expect(title_input).to_be_focused()
     title_input.fill("งานทดสอบผ่านเบราว์เซอร์")
     dialog.get_by_label("รายละเอียด").fill("ตรวจเส้นทางจากหน้าเว็บถึง SQLite")
+    dialog.get_by_label("วันครบกำหนด").fill(TODAY)
     with page.expect_response(
         lambda response: response.url.endswith("/api/tasks")
         and response.request.method == "POST"
@@ -81,6 +85,7 @@ with sync_playwright() as playwright:
     expect(page.locator(".toast", has_text="เพิ่มงานแล้ว")).to_be_visible()
     created_row = page.locator(".task-row", has_text="งานทดสอบผ่านเบราว์เซอร์")
     expect(created_row).to_be_visible()
+    expect(created_row.get_by_text("ครบกำหนดวันนี้", exact=True)).to_be_visible()
 
     created_row.get_by_role("button", name="แก้ไข").click()
     edit_dialog = page.locator("dialog[open]")
@@ -99,6 +104,7 @@ with sync_playwright() as playwright:
     expect(edited_row.get_by_text("เสร็จแล้ว", exact=True)).to_be_visible()
 
     page.get_by_label("สถานะ").select_option("DONE")
+    page.get_by_label("กำหนดส่ง").select_option("TODAY")
     page.get_by_label("ค้นหาจากชื่องาน").fill("ผ่านเบราว์เซอร์")
     page.get_by_role("button", name="ค้นหา", exact=True).click()
     page.wait_for_load_state("networkidle")
@@ -128,6 +134,7 @@ with sync_playwright() as playwright:
     preserved_title = "งานที่ต้องคงข้อมูลเมื่อบันทึกล้มเหลว"
     error_dialog.get_by_label("ชื่องาน").fill(preserved_title)
     error_dialog.get_by_label("รายละเอียด").fill("ข้อความนี้ต้องยังอยู่ในฟอร์ม")
+    error_dialog.get_by_label("วันครบกำหนด").fill(YESTERDAY)
 
     failed_once = {"value": False}
 
@@ -149,6 +156,7 @@ with sync_playwright() as playwright:
     expect(error_dialog.get_by_label("รายละเอียด")).to_have_value(
         "ข้อความนี้ต้องยังอยู่ในฟอร์ม"
     )
+    expect(error_dialog.get_by_label("วันครบกำหนด")).to_have_value(YESTERDAY)
     page.unroute("**/api/tasks", fail_first_create)
 
     with page.expect_response(
@@ -159,6 +167,11 @@ with sync_playwright() as playwright:
     assert retry_response.value.status == 201
     final_row = page.locator(".task-row", has_text=preserved_title)
     expect(final_row).to_be_visible()
+    expect(final_row.get_by_text("เกินกำหนด", exact=False)).to_be_visible()
+    page.get_by_label("กำหนดส่ง").select_option("OVERDUE")
+    page.wait_for_load_state("networkidle")
+    expect(final_row).to_be_visible()
+    expect(page.locator(".task-row")).to_have_count(1)
     assert_no_horizontal_overflow(page, "desktop populated state")
     page.screenshot(path=str(ARTIFACTS / "desktop-1440.png"), full_page=True)
 
@@ -174,7 +187,9 @@ with sync_playwright() as playwright:
     mobile_page.goto(BASE_URL)
     mobile_page.wait_for_load_state("networkidle")
     expect(mobile_page.get_by_role("heading", name="งานของฉัน")).to_be_visible()
-    expect(mobile_page.locator(".task-row", has_text=preserved_title)).to_be_visible()
+    mobile_row = mobile_page.locator(".task-row", has_text=preserved_title)
+    expect(mobile_row).to_be_visible()
+    expect(mobile_row.get_by_text("เกินกำหนด", exact=False)).to_be_visible()
     assert_no_horizontal_overflow(mobile_page, "mobile populated state")
     mobile_page.screenshot(path=str(ARTIFACTS / "mobile-375.png"), full_page=True)
 
@@ -195,4 +210,4 @@ assert not unexpected_console_errors, (
     f"Unexpected browser console errors: {unexpected_console_errors}"
 )
 assert not page_errors, f"Uncaught page errors: {page_errors}"
-print("Browser smoke test passed: create, edit, search, filter, cancel delete, delete, error recovery, 375px, 1440px")
+print("Browser smoke test passed: due dates, overdue filter, create, edit, search, status filter, cancel delete, delete, error recovery, 375px, 1440px")

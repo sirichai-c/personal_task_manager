@@ -23,6 +23,21 @@ const migrations = [
         ON tasks(status, created_at DESC, id DESC);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN due_date TEXT
+        CHECK (
+          due_date IS NULL OR (
+            length(due_date) = 10 AND
+            due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+          )
+        );
+
+      CREATE INDEX idx_tasks_due_date_status
+        ON tasks(due_date, status, created_at DESC, id DESC);
+    `,
+  },
 ] as const;
 
 export function runMigrations(database: DatabaseSync): void {
@@ -57,4 +72,3 @@ export function runMigrations(database: DatabaseSync): void {
     }
   }
 }
-

@@ -1,6 +1,8 @@
 import {
+  DUE_DATE_FILTERS,
   PAGE_SIZE,
   TASK_STATUSES,
+  type DueDateFilter,
   type Task,
   type TaskList,
   type TaskStatus,
@@ -63,6 +65,48 @@ function validateStatus(value: unknown): TaskStatus {
   return value as TaskStatus;
 }
 
+function validateDate(value: unknown, field: "dueDate" | "referenceDate"): string {
+  const message = field === "dueDate" ? "วันครบกำหนดไม่ถูกต้อง" : "วันที่อ้างอิงไม่ถูกต้อง";
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new ValidationError(message, { [field]: message });
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new ValidationError(message, { [field]: message });
+  }
+  return value;
+}
+
+function validateDueDate(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  return validateDate(value, "dueDate");
+}
+
+function validateDueDateFilter(value: unknown): DueDateFilter {
+  if (typeof value !== "string" || !DUE_DATE_FILTERS.includes(value as DueDateFilter)) {
+    throw new ValidationError("ตัวกรองวันครบกำหนดไม่ถูกต้อง", {
+      dueDate: "ตัวกรองวันครบกำหนดไม่ถูกต้อง",
+    });
+  }
+  return value as DueDateFilter;
+}
+
+function addDays(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function getWeekBounds(value: string): { start: string; end: string } {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  const dayFromMonday = (date.getUTCDay() + 6) % 7;
+  const start = addDays(value, -dayFromMonday);
+  return { start, end: addDays(start, 6) };
+}
+
 function validatePage(value: unknown): number {
   const page = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
   if (typeof page !== "number" || !Number.isSafeInteger(page) || page < 1) {
@@ -85,11 +129,18 @@ export class TaskService {
       title: validateTitle(record.title),
       description: validateDescription(record.description),
       status: "TODO",
+      dueDate: validateDueDate(record.dueDate),
       now: this.now().toISOString(),
     });
   }
 
-  list(input: { search?: unknown; status?: unknown; page?: unknown }): TaskList {
+  list(input: {
+    search?: unknown;
+    status?: unknown;
+    dueDate?: unknown;
+    referenceDate?: unknown;
+    page?: unknown;
+  }): TaskList {
     let search: string | undefined;
     if (input.search !== undefined) {
       if (typeof input.search !== "string") {
@@ -103,12 +154,23 @@ export class TaskService {
     }
 
     const status = input.status === undefined ? undefined : validateStatus(input.status);
+    const dueDate =
+      input.dueDate === undefined ? undefined : validateDueDateFilter(input.dueDate);
+    const referenceDate =
+      input.referenceDate === undefined
+        ? this.now().toISOString().slice(0, 10)
+        : validateDate(input.referenceDate, "referenceDate");
+    const week = getWeekBounds(referenceDate);
     const page = input.page === undefined ? 1 : validatePage(input.page);
     const result = this.repository.list({
       page,
       pageSize: PAGE_SIZE,
+      referenceDate,
+      weekStart: week.start,
+      weekEnd: week.end,
       ...(search ? { search } : {}),
       ...(status ? { status } : {}),
+      ...(dueDate ? { dueDate } : {}),
     });
 
     return {
@@ -129,7 +191,7 @@ export class TaskService {
       throw new NotFoundError();
     }
 
-    const hasEditableField = ["title", "description", "status"].some((field) =>
+    const hasEditableField = ["title", "description", "status", "dueDate"].some((field) =>
       Object.hasOwn(record, field),
     );
     if (!hasEditableField) {
@@ -144,6 +206,9 @@ export class TaskService {
       status: Object.hasOwn(record, "status")
         ? validateStatus(record.status)
         : current.status,
+      dueDate: Object.hasOwn(record, "dueDate")
+        ? validateDueDate(record.dueDate)
+        : current.dueDate,
       now: this.now().toISOString(),
     });
 
@@ -159,4 +224,3 @@ export class TaskService {
     }
   }
 }
-

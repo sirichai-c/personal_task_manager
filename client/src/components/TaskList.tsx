@@ -15,11 +15,48 @@ const dateFormatter = new Intl.DateTimeFormat("th-TH", {
   timeStyle: "short",
 });
 
+const dueDateFormatter = new Intl.DateTimeFormat("th-TH", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
 const STATUS_LABELS: Record<TaskStatus, string> = {
   TODO: "ต้องทำ",
   IN_PROGRESS: "กำลังทำ",
   DONE: "เสร็จแล้ว",
 };
+
+function getLocalDateValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function DueDate({ task, today }: { task: Task; today: string }) {
+  if (!task.dueDate) {
+    return <span className="due-date due-date-empty">ไม่กำหนดวัน</span>;
+  }
+
+  const formattedDate = dueDateFormatter.format(new Date(`${task.dueDate}T00:00:00.000Z`));
+  const isOverdue = task.status !== "DONE" && task.dueDate < today;
+  const isToday = task.dueDate === today;
+  const label = isOverdue
+    ? `เกินกำหนด ${formattedDate}`
+    : isToday
+      ? "ครบกำหนดวันนี้"
+      : `ครบกำหนด ${formattedDate}`;
+
+  return (
+    <time
+      className={`due-date ${isOverdue ? "due-date-overdue" : isToday ? "due-date-today" : ""}`}
+      dateTime={task.dueDate}
+    >
+      {label}
+    </time>
+  );
+}
 
 function LoadingRows() {
   return (
@@ -54,7 +91,7 @@ export function TaskList({
         <h2>{hasFilters ? "ไม่พบงานที่ตรงกัน" : "ยังไม่มีงานในรายการ"}</h2>
         <p>
           {hasFilters
-            ? "ลองเปลี่ยนคำค้นหาหรือสถานะเพื่อดูงานอื่น"
+            ? "ลองเปลี่ยนคำค้นหา สถานะ หรือกำหนดส่งเพื่อดูงานอื่น"
             : "เพิ่มงานแรก แล้วค่อย ๆ จัดการทีละเรื่อง"}
         </p>
         <button
@@ -68,6 +105,8 @@ export function TaskList({
     );
   }
 
+  const today = getLocalDateValue();
+
   return (
     <ul className="task-list" aria-label="รายการงาน">
       {tasks.map((task) => (
@@ -80,9 +119,12 @@ export function TaskList({
             <h2>{task.title}</h2>
             {task.description ? <p>{task.description}</p> : <p className="no-description">ไม่มีรายละเอียด</p>}
           </div>
-          <time className="task-date" dateTime={task.createdAt}>
-            สร้าง {dateFormatter.format(new Date(task.createdAt))}
-          </time>
+          <div className="task-dates">
+            <time className="task-date" dateTime={task.createdAt}>
+              สร้าง {dateFormatter.format(new Date(task.createdAt))}
+            </time>
+            <DueDate task={task} today={today} />
+          </div>
           <div className="task-actions" aria-label={`การทำงานสำหรับ ${task.title}`}>
             <button type="button" className="text-button" onClick={() => onEdit(task)}>
               แก้ไข
@@ -96,4 +138,3 @@ export function TaskList({
     </ul>
   );
 }
-

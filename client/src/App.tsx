@@ -4,14 +4,29 @@ import { DeleteTaskDialog } from "./components/DeleteTaskDialog";
 import { Pagination } from "./components/Pagination";
 import { TaskFormDialog } from "./components/TaskFormDialog";
 import { TaskList } from "./components/TaskList";
-import type { StatusFilter, Task, TaskInput, TaskListResponse } from "./types";
+import type {
+  DueDateFilter,
+  StatusFilter,
+  Task,
+  TaskInput,
+  TaskListResponse,
+} from "./types";
 
 interface Filters {
   search: string;
   status: StatusFilter;
+  dueDate: DueDateFilter;
 }
 
-const EMPTY_FILTERS: Filters = { search: "", status: "" };
+const EMPTY_FILTERS: Filters = { search: "", status: "", dueDate: "" };
+
+function getLocalDateValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function App() {
   const [data, setData] = useState<TaskListResponse | null>(null);
@@ -25,11 +40,11 @@ export default function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
-  const requestKey = `${filters.search}\u0000${filters.status}\u0000${page}\u0000${refreshKey}`;
+  const requestKey = `${filters.search}\u0000${filters.status}\u0000${filters.dueDate}\u0000${page}\u0000${refreshKey}`;
 
   useEffect(() => {
     const controller = new AbortController();
-    getTasks({ ...filters, page }, controller.signal)
+    getTasks({ ...filters, referenceDate: getLocalDateValue(), page }, controller.signal)
       .then((response) => {
         setData(response);
         setRequestError(null);
@@ -109,7 +124,7 @@ export default function App() {
   }
 
   const totalItems = data?.pagination.totalItems ?? 0;
-  const hasFilters = Boolean(filters.search || filters.status);
+  const hasFilters = Boolean(filters.search || filters.status || filters.dueDate);
   const isLoading = settledRequestKey !== requestKey;
   const loadError = requestError?.key === requestKey ? requestError.message : "";
   const showInitialLoading = isLoading && !data;
@@ -170,6 +185,26 @@ export default function App() {
               <option value="DONE">เสร็จแล้ว</option>
             </select>
           </div>
+          <div className="due-date-field">
+            <label htmlFor="due-date-filter">กำหนดส่ง</label>
+            <select
+              id="due-date-filter"
+              value={filters.dueDate}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  dueDate: event.target.value as DueDateFilter,
+                }));
+                setPage(1);
+              }}
+            >
+              <option value="">ทุกกำหนดส่ง</option>
+              <option value="TODAY">วันนี้</option>
+              <option value="THIS_WEEK">สัปดาห์นี้</option>
+              <option value="OVERDUE">เกินกำหนด</option>
+              <option value="NO_DATE">ไม่กำหนดวัน</option>
+            </select>
+          </div>
           <button type="submit" className="button button-secondary search-button">
             ค้นหา
           </button>
@@ -183,7 +218,11 @@ export default function App() {
         <div className="list-heading">
           <div>
             <h2>รายการงาน</h2>
-            <p>{hasFilters ? "ผลลัพธ์ตามคำค้นหาและสถานะที่เลือก" : "เรียงจากงานที่เพิ่มล่าสุด"}</p>
+            <p>
+              {hasFilters
+                ? "ผลลัพธ์ตามคำค้นหา สถานะ และกำหนดส่งที่เลือก"
+                : "เรียงจากงานที่เพิ่มล่าสุด"}
+            </p>
           </div>
           {isLoading && data ? <span className="refresh-indicator">กำลังอัปเดต…</span> : null}
         </div>

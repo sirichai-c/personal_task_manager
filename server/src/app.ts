@@ -12,6 +12,7 @@ import { TaskService } from "./services/task-service.js";
 export interface ApplicationOptions {
   databasePath: string;
   clientDistPath?: string;
+  now?: () => Date;
 }
 
 export interface ApplicationHandle {
@@ -33,7 +34,7 @@ function isJsonParseError(error: unknown): boolean {
 export function createApplication(options: ApplicationOptions): ApplicationHandle {
   const database = openDatabase(options.databasePath);
   const repository = new TaskRepository(database);
-  const service = new TaskService(repository);
+  const service = new TaskService(repository, options.now);
   const controller = new TaskController(service);
   const app = express();
 

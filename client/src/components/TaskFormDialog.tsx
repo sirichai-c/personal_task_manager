@@ -15,17 +15,23 @@ interface TaskFormDialogProps {
   onSave: (input: TaskInput) => Promise<void>;
 }
 
-const EMPTY_FORM: TaskInput = { title: "", description: "", status: "TODO" };
+const EMPTY_FORM: TaskInput = { title: "", description: "", status: "TODO", dueDate: "" };
 
 export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const dueDateId = useId();
   const statusId = useId();
   const [form, setForm] = useState<TaskInput>(() =>
     task
-      ? { title: task.title, description: task.description, status: task.status }
+      ? {
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          dueDate: task.dueDate ?? "",
+        }
       : EMPTY_FORM,
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -152,6 +158,29 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
           {fieldErrors.description ? (
             <span id={`${descriptionId}-error`} className="field-error">
               {fieldErrors.description}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <div className="field-label-row">
+            <label htmlFor={dueDateId}>วันครบกำหนด</label>
+            <span>ไม่บังคับ</span>
+          </div>
+          <input
+            id={dueDateId}
+            name="dueDate"
+            type="date"
+            value={form.dueDate}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, dueDate: event.target.value }))
+            }
+            aria-invalid={Boolean(fieldErrors.dueDate)}
+            aria-describedby={fieldErrors.dueDate ? `${dueDateId}-error` : undefined}
+          />
+          {fieldErrors.dueDate ? (
+            <span id={`${dueDateId}-error`} className="field-error">
+              {fieldErrors.dueDate}
             </span>
           ) : null}
         </div>
