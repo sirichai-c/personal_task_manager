@@ -19,6 +19,7 @@ const EMPTY_FORM: TaskInput = { title: "", description: "", status: "TODO" };
 
 export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const statusId = useId();
@@ -38,6 +39,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
     }
     if (!dialog.open) {
       dialog.showModal();
+      titleInputRef.current?.focus();
     }
   }, []);
 
@@ -111,13 +113,13 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
             <span>{Array.from(form.title).length}/120</span>
           </div>
           <input
+            ref={titleInputRef}
             id={titleId}
             name="title"
             value={form.title}
             onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
             maxLength={120}
             required
-            autoFocus
             aria-invalid={Boolean(fieldErrors.title)}
             aria-describedby={fieldErrors.title ? `${titleId}-error` : undefined}
             placeholder="เช่น เตรียมเอกสารประชุม"

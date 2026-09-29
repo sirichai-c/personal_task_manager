@@ -1,5 +1,8 @@
 import { resolve } from "node:path";
 import { createApplication } from "./app.js";
+import { loadLocalEnvironment } from "./config/environment.js";
+
+loadLocalEnvironment();
 
 function readPort(value: string | undefined): number {
   const port = Number(value ?? 3000);
@@ -35,4 +38,3 @@ function shutdown(): void {
 
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
-

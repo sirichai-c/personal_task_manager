@@ -61,8 +61,7 @@ export default function App() {
   }
 
   function announceSuccess(message: string) {
-    setSuccessMessage("");
-    window.setTimeout(() => setSuccessMessage(message), 0);
+    setSuccessMessage(message);
   }
 
   function applySearch(event: FormEvent<HTMLFormElement>) {

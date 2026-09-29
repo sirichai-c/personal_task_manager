@@ -1,5 +1,8 @@
 node_modules/
 .npm-cache/
+.browser-tools/
+.playwright-browsers/
+.test-artifacts/
 dist/
 coverage/
 data/*.sqlite*
@@ -8,4 +11,3 @@ data/*.sqlite*
 playwright-report/
 test-results/
 *.log
-

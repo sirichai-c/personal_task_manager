@@ -6,7 +6,15 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", ".npm-cache/**", "coverage/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      ".npm-cache/**",
+      ".browser-tools/**",
+      ".playwright-browsers/**",
+      ".test-artifacts/**",
+      "coverage/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -31,4 +39,3 @@ export default tseslint.config(
     },
   },
 );
-
