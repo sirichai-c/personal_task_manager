@@ -1,6 +1,6 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-09-30 — สถานะ: พัฒนาและทดสอบลำดับที่ 3 สำเร็จ
+อัปเดตล่าสุด: 2026-09-30 — สถานะ: พัฒนา ทดสอบ และ push ลำดับที่ 3 สำเร็จ; production deploy รอ Railway เปิดรับ deployment
 
 ## ขอบเขต
 
@@ -92,7 +92,8 @@
 9. [x] ตั้ง production variables, persistent volume `/app/data`, public domain และตรวจ production smoke test
 10. [x] เพิ่มวันครบกำหนด ตัวกรองวันนี้/สัปดาห์นี้/เกินกำหนด/ไม่กำหนดวัน และ migration จาก schema เดิม
 11. [x] เพิ่ม priority, หลาย tags, ตัวกรองแบบผสม, การเรียง 4 แบบ และ migration รุ่น 3 (27 tests ผ่าน)
+12. [ ] Deploy ลำดับที่ 3 ขึ้น Railway และ production smoke test (Railway ปฏิเสธสองครั้งด้วย `Deploys have been paused temporarily`; production เดิมยัง health 200)
 
 ## ปัญหาค้าง
 
-ไม่มีสิ่งค้างในขอบเขต; ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว ไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+โค้ดและการทดสอบลำดับที่ 3 เสร็จแล้ว เหลือ deployment ภายนอกเพียงรายการเดียว: Railway ยังหยุดรับ deployment ชั่วคราว ณ เวลาส่งมอบ จึงคง service เดิมไว้โดยไม่แตะ persistent volume ต้อง retry deployment `main` เมื่อ Railway เปิดรับอีกครั้ง ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

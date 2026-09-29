@@ -107,6 +107,8 @@ docs/                      แผน รายงาน AC และผล perfo
 - Source: GitHub repository `sirichai-c/personal_task_manager`, branch `main`
 - ฐานข้อมูล: SQLite ที่ `/app/data/tasks.sqlite` บน Railway persistent volume ซึ่ง mount ที่ `/app/data`
 
+> สถานะ 2026-09-30: source ของ priority/tags/sorting อยู่บน `main` แล้ว แต่ Railway ตอบ `Deploys have been paused temporarily` ทั้งจาก auto-deploy และ CLI จึงยังให้ production รัน commit ก่อนหน้า (`96ea5f5`) ต่อไปโดยไม่แตะ volume; local production build และ browser smoke test ของฟีเจอร์ใหม่ผ่านครบแล้ว
+
 ขั้นตอนแบบเข้าใจง่ายสำหรับสร้าง deployment ใหม่:
 
 1. Push โค้ดขึ้น GitHub และสร้าง Railway project กับ empty service

@@ -16,7 +16,7 @@
 | AC-10 UI responsive | ผ่าน | Chrome headless ที่ 375×812 และ 1440×1000; assert `scrollWidth <= clientWidth`; ตรวจ screenshot จริง |
 | AC-11 สถานะ UI | ผ่าน | browser test ตรวจ empty, load error + retry, mutation error และ success toast; loading skeleton อยู่ใน initial fetch path |
 | AC-12 ฟอร์ม/accessibility | ผ่าน | browser test ยืนยัน focus ชื่องานหลังเปิด dialog, cancel dialog, disabled ระหว่าง submit และรักษาค่าหลังจำลอง 500 |
-| AC-13 การเชื่อมจริง | ผ่าน | production browser test ใช้ React → Express → SQLite แยก; ไม่มี mock ในเส้นทางสำเร็จ |
+| AC-13 การเชื่อมจริง | ผ่าน | browser test บน production build ใช้ React → Express → SQLite จริง; ไม่มี mock ในเส้นทางสำเร็จ |
 | AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 27 tests ผ่าน ครอบคลุม validation/CRUD/search/combined filters/sorts/due date/tags cleanup/migration/pagination/404/persistence |
 | AC-15 ประสิทธิภาพ | ผ่าน | `npm run performance`: 5,000 rows, 20 requests/scenario; ดู `docs/performance-report.md` |
 | AC-16 คุณภาพ build | ผ่าน | `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` ผ่านจริง |
@@ -31,7 +31,7 @@ Production build ผ่าน Chrome headless ด้วยฐานข้อม�
 
 ## Production deployment smoke test
 
-Railway deployment จาก GitHub branch `main` เปิดที่ <https://personal-task-manager-production-57d2.up.railway.app> ทดสอบแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ API production สร้าง/แก้ priority กับ tags, กรองร่วม, เรียง, validation และลบได้ครบ ฐานข้อมูลอยู่บน persistent volume `/app/data`; หลังตรวจเสร็จได้ลบข้อมูล smoke test ออกจาก production แล้ว
+GitHub branch `main` มีฟีเจอร์ใหม่แล้ว แต่ Railway ไม่สร้าง auto-deployment และการส่งผ่าน CLI ถูกปฏิเสธสองครั้งด้วย `Deploys have been paused temporarily` จึงยังไม่อ้างว่า production ผ่านฟีเจอร์ใหม่ Service เดิมจาก commit `96ea5f5` ยังตอบ `/api/health` เป็น HTTP 200 พร้อม `{ "status": "ok" }`, หน้าเว็บตอบ 200 และ persistent volume `/app/data` อยู่สถานะ `READY` โดยไม่ได้แก้หรือลบข้อมูลใด ต้อง retry deployment และ production smoke test เมื่อ Railway เปิดรับ deployment อีกครั้ง
 
 ## ข้อจำกัดของหลักฐาน
 
