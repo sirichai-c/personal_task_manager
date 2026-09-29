@@ -77,7 +77,7 @@
 
 1. [x] ตรวจไฟล์ เครื่องมือ และ Git; สร้าง repository
 2. [x] กำหนด AC, scope, schema, สถาปัตยกรรม และแนวทาง UI
-3. [ ] สร้าง backend/database แบบทดสอบได้และ API integration tests
+3. [x] สร้าง backend/database แบบทดสอบได้และ API integration tests (11 tests ผ่าน)
 4. [ ] สร้าง React UI เชื่อม API ครบเส้นทาง
 5. [ ] รัน lint, typecheck, test, build และแก้ข้อผิดพลาด
 6. [ ] ทดสอบเบราว์เซอร์จริงที่ 375px/1440px และเส้นทางหลัก
