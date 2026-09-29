@@ -1,0 +1,243 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { ApiError, createTask, deleteTask, getTasks, updateTask } from "./api/tasks";
+import { DeleteTaskDialog } from "./components/DeleteTaskDialog";
+import { Pagination } from "./components/Pagination";
+import { TaskFormDialog } from "./components/TaskFormDialog";
+import { TaskList } from "./components/TaskList";
+import type { StatusFilter, Task, TaskInput, TaskListResponse } from "./types";
+
+interface Filters {
+  search: string;
+  status: StatusFilter;
+}
+
+const EMPTY_FILTERS: Filters = { search: "", status: "" };
+
+export default function App() {
+  const [data, setData] = useState<TaskListResponse | null>(null);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [settledRequestKey, setSettledRequestKey] = useState("");
+  const [requestError, setRequestError] = useState<{ key: string; message: string } | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  const requestKey = `${filters.search}\u0000${filters.status}\u0000${page}\u0000${refreshKey}`;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getTasks({ ...filters, page }, controller.signal)
+      .then((response) => {
+        setData(response);
+        setRequestError(null);
+        setSettledRequestKey(requestKey);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setRequestError({
+          key: requestKey,
+          message: error instanceof ApiError ? error.message : "โหลดรายการงานไม่สำเร็จ",
+        });
+        setSettledRequestKey(requestKey);
+      });
+    return () => controller.abort();
+  }, [filters, page, requestKey]);
+
+  useEffect(() => {
+    if (!successMessage) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setSuccessMessage(""), 3_500);
+    return () => window.clearTimeout(timeout);
+  }, [successMessage]);
+
+  function refresh() {
+    setRefreshKey((value) => value + 1);
+  }
+
+  function announceSuccess(message: string) {
+    setSuccessMessage("");
+    window.setTimeout(() => setSuccessMessage(message), 0);
+  }
+
+  function applySearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPage(1);
+    setFilters((current) => ({ ...current, search: searchDraft.trim() }));
+  }
+
+  function clearFilters() {
+    setSearchDraft("");
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+  }
+
+  async function handleCreate(input: TaskInput) {
+    await createTask(input);
+    setIsCreateOpen(false);
+    setPage(1);
+    refresh();
+    announceSuccess("เพิ่มงานแล้ว");
+  }
+
+  async function handleUpdate(input: TaskInput) {
+    if (!editingTask) {
+      return;
+    }
+    await updateTask(editingTask.id, input);
+    setEditingTask(null);
+    refresh();
+    announceSuccess("บันทึกการแก้ไขแล้ว");
+  }
+
+  async function handleDelete() {
+    if (!deletingTask) {
+      return;
+    }
+    await deleteTask(deletingTask.id);
+    setDeletingTask(null);
+    if (data && data.items.length === 1 && page > 1) {
+      setPage((current) => current - 1);
+    } else {
+      refresh();
+    }
+    announceSuccess("ลบงานแล้ว");
+  }
+
+  const totalItems = data?.pagination.totalItems ?? 0;
+  const hasFilters = Boolean(filters.search || filters.status);
+  const isLoading = settledRequestKey !== requestKey;
+  const loadError = requestError?.key === requestKey ? requestError.message : "";
+  const showInitialLoading = isLoading && !data;
+
+  return (
+    <div className="app-shell">
+      <header className="masthead">
+        <div className="brand-block">
+          <span className="brand-mark" aria-hidden="true">
+            <span />
+          </span>
+          <div>
+            <h1>งานของฉัน</h1>
+            <p>
+              {isLoading && !data
+                ? "กำลังเปิดสมุดงาน…"
+                : `${totalItems.toLocaleString("th-TH")} งานในรายการนี้`}
+            </p>
+          </div>
+        </div>
+        <button type="button" className="button button-primary add-button" onClick={() => setIsCreateOpen(true)}>
+          <span aria-hidden="true">＋</span> เพิ่มงาน
+        </button>
+      </header>
+
+      <main className="workspace">
+        <form className="filter-bar" role="search" onSubmit={applySearch}>
+          <div className="search-field">
+            <label htmlFor="task-search">ค้นหาจากชื่องาน</label>
+            <div className="search-input-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input
+                id="task-search"
+                type="search"
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                placeholder="พิมพ์ชื่องานที่ต้องการค้นหา"
+                maxLength={120}
+              />
+            </div>
+          </div>
+          <div className="status-field">
+            <label htmlFor="status-filter">สถานะ</label>
+            <select
+              id="status-filter"
+              value={filters.status}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  status: event.target.value as StatusFilter,
+                }));
+                setPage(1);
+              }}
+            >
+              <option value="">ทุกสถานะ</option>
+              <option value="TODO">ต้องทำ</option>
+              <option value="IN_PROGRESS">กำลังทำ</option>
+              <option value="DONE">เสร็จแล้ว</option>
+            </select>
+          </div>
+          <button type="submit" className="button button-secondary search-button">
+            ค้นหา
+          </button>
+          {hasFilters ? (
+            <button type="button" className="clear-button" onClick={clearFilters}>
+              ล้างตัวกรอง
+            </button>
+          ) : null}
+        </form>
+
+        <div className="list-heading">
+          <div>
+            <h2>รายการงาน</h2>
+            <p>{hasFilters ? "ผลลัพธ์ตามคำค้นหาและสถานะที่เลือก" : "เรียงจากงานที่เพิ่มล่าสุด"}</p>
+          </div>
+          {isLoading && data ? <span className="refresh-indicator">กำลังอัปเดต…</span> : null}
+        </div>
+
+        {loadError ? (
+          <div className="load-error" role="alert">
+            <div>
+              <strong>โหลดรายการไม่สำเร็จ</strong>
+              <span>{loadError}</span>
+            </div>
+            <button type="button" className="text-button" onClick={refresh}>
+              ลองอีกครั้ง
+            </button>
+          </div>
+        ) : null}
+
+        {loadError && !data ? null : (
+          <TaskList
+            tasks={data?.items ?? []}
+            isLoading={showInitialLoading}
+            hasFilters={hasFilters}
+            onAdd={() => setIsCreateOpen(true)}
+            onClearFilters={clearFilters}
+            onEdit={setEditingTask}
+            onDelete={setDeletingTask}
+          />
+        )}
+
+        {data ? (
+          <Pagination {...data.pagination} onPageChange={setPage} />
+        ) : null}
+      </main>
+
+      {isCreateOpen ? (
+        <TaskFormDialog task={null} onClose={() => setIsCreateOpen(false)} onSave={handleCreate} />
+      ) : null}
+      {editingTask ? (
+        <TaskFormDialog task={editingTask} onClose={() => setEditingTask(null)} onSave={handleUpdate} />
+      ) : null}
+      {deletingTask ? (
+        <DeleteTaskDialog
+          task={deletingTask}
+          onClose={() => setDeletingTask(null)}
+          onConfirm={handleDelete}
+        />
+      ) : null}
+
+      <div className={`toast ${successMessage ? "toast-visible" : ""}`} aria-live="polite" aria-atomic="true">
+        <span className="toast-check" aria-hidden="true">
+          ✓
+        </span>
+        {successMessage}
+      </div>
+    </div>
+  );
+}
