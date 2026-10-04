@@ -80,6 +80,7 @@ async function createTask(
   dueDate?: string | null,
   priority?: "LOW" | "NORMAL" | "HIGH",
   tags?: string[],
+  recurrence?: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY",
 ) {
   return request<{
     item: {
@@ -89,6 +90,7 @@ async function createTask(
       status: string;
       dueDate: string | null;
       priority: string;
+      recurrence: string;
       tags: string[];
       subtasks: Array<{
         id: number;
@@ -110,6 +112,7 @@ async function createTask(
         ...(dueDate !== undefined ? { dueDate } : {}),
         ...(priority !== undefined ? { priority } : {}),
         ...(tags !== undefined ? { tags } : {}),
+        ...(recurrence !== undefined ? { recurrence } : {}),
       }),
     },
   );
@@ -155,6 +158,7 @@ describe("tasks API", () => {
       status: "TODO",
       dueDate: null,
       priority: "NORMAL",
+      recurrence: "NONE",
       tags: [],
       subtasks: [],
     });
@@ -166,6 +170,188 @@ describe("tasks API", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.item.dueDate).toBe("2026-10-05");
+  });
+
+  it("creates a recurring task only when it has a valid due date", async () => {
+    const server = await startServer();
+    const recurring = await request<{ item: { recurrence: string; dueDate: string } }>(
+      server,
+      "/api/tasks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "สรุปรายงานประจำสัปดาห์",
+          dueDate: "2026-10-05",
+          recurrence: "WEEKLY",
+        }),
+      },
+    );
+    const withoutDueDate = await request<{
+      error: { fields: Record<string, string> };
+    }>(server, "/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "งานทุกวัน", recurrence: "DAILY" }),
+    });
+
+    expect(recurring.status).toBe(201);
+    expect(recurring.body.item).toMatchObject({
+      recurrence: "WEEKLY",
+      dueDate: "2026-10-05",
+    });
+    expect(withoutDueDate.status).toBe(400);
+    expect(withoutDueDate.body.error.fields.dueDate).toBeTruthy();
+  });
+
+  it("creates one next occurrence with copied tags and reset subtasks when completed", async () => {
+    let currentTime = "2026-10-04T08:00:00.000Z";
+    const server = await startServer(
+      join(testDirectory, "recurring.sqlite"),
+      () => new Date(currentTime),
+    );
+    const created = await request<{
+      item: { id: number };
+    }>(server, "/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "ประชุมทีม",
+        dueDate: "2026-10-05",
+        recurrence: "WEEKLY",
+        tags: ["ทีม", "ประจำ"],
+      }),
+    });
+    const subtask = await createSubtask(server, created.body.item.id, "เตรียมวาระ");
+    await request(
+      server,
+      `/api/tasks/${created.body.item.id}/subtasks/${subtask.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ completed: true }) },
+    );
+
+    currentTime = "2026-10-05T12:00:00.000Z";
+    const completed = await request<{
+      item: { id: number; status: string };
+      nextItem?: {
+        id: number;
+        status: string;
+        dueDate: string;
+        recurrence: string;
+        tags: string[];
+        subtasks: Array<{ title: string; completed: boolean }>;
+      };
+    }>(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "DONE" }),
+    });
+
+    expect(completed.status).toBe(200);
+    expect(completed.body.item.status).toBe("DONE");
+    expect(completed.body.nextItem).toMatchObject({
+      status: "TODO",
+      dueDate: "2026-10-12",
+      recurrence: "WEEKLY",
+      tags: expect.arrayContaining(["ทีม", "ประจำ"]),
+      subtasks: [{ title: "เตรียมวาระ", completed: false }],
+    });
+
+    const repeatedPatch = await request<{ nextItem?: unknown }>(
+      server,
+      `/api/tasks/${created.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ status: "DONE" }) },
+    );
+    const list = await request<{ pagination: { totalItems: number } }>(
+      server,
+      `/api/tasks?search=${encodeURIComponent("ประชุมทีม")}`,
+    );
+    expect(repeatedPatch.body.nextItem).toBeUndefined();
+    expect(list.body.pagination.totalItems).toBe(2);
+
+    await request(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "TODO" }),
+    });
+    const completedAgain = await request<{ nextItem?: unknown }>(
+      server,
+      `/api/tasks/${created.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ status: "DONE" }) },
+    );
+    const listAfterReopen = await request<{ pagination: { totalItems: number } }>(
+      server,
+      `/api/tasks?search=${encodeURIComponent("ประชุมทีม")}`,
+    );
+    expect(completedAgain.body.nextItem).toBeUndefined();
+    expect(listAfterReopen.body.pagination.totalItems).toBe(2);
+  });
+
+  it.each([
+    ["DAILY", "2026-12-31", "2027-01-01"],
+    ["WEEKLY", "2026-12-28", "2027-01-04"],
+    ["MONTHLY", "2026-01-31", "2026-02-28"],
+    ["MONTHLY", "2028-01-31", "2028-02-29"],
+    ["MONTHLY", "2026-12-31", "2027-01-31"],
+  ] as const)(
+    "calculates the next %s due date from %s as %s",
+    async (recurrence, dueDate, expectedDueDate) => {
+      const server = await startServer();
+      const created = await createTask(
+        server,
+        `งาน ${recurrence} ${dueDate}`,
+        "",
+        dueDate,
+        "NORMAL",
+        [],
+        recurrence,
+      );
+      const completed = await request<{ nextItem?: { dueDate: string } }>(
+        server,
+        `/api/tasks/${created.body.item.id}`,
+        { method: "PATCH", body: JSON.stringify({ status: "DONE" }) },
+      );
+
+      expect(completed.status).toBe(200);
+      expect(completed.body.nextItem?.dueDate).toBe(expectedDueDate);
+    },
+  );
+
+  it("validates recurrence when creating and editing tasks", async () => {
+    const server = await startServer();
+    const invalidCreate = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      "/api/tasks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "งานรอบไม่ถูกต้อง",
+          dueDate: "2026-10-05",
+          recurrence: "YEARLY",
+        }),
+      },
+    );
+    const created = await createTask(
+      server,
+      "งานรายวัน",
+      "",
+      "2026-10-05",
+      "NORMAL",
+      [],
+      "DAILY",
+    );
+    const invalidUpdate = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      `/api/tasks/${created.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ dueDate: null }) },
+    );
+    const disabled = await request<{
+      item: { recurrence: string; dueDate: string | null };
+    }>(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ recurrence: "NONE", dueDate: null }),
+    });
+
+    expect(invalidCreate.status).toBe(400);
+    expect(invalidCreate.body.error.fields.recurrence).toBeTruthy();
+    expect(invalidUpdate.status).toBe(400);
+    expect(invalidUpdate.body.error.fields.dueDate).toBeTruthy();
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.item).toMatchObject({ recurrence: "NONE", dueDate: null });
   });
 
   it.each([
@@ -644,6 +830,7 @@ describe("tasks API", () => {
         id: number;
         title: string;
         priority: string;
+        recurrence: string;
         tags: string[];
         subtasks: Array<{ title: string }>;
       }>;
@@ -713,10 +900,11 @@ describe("tasks API", () => {
         title: "งานจาก schema เดิม",
         dueDate: null,
         priority: "NORMAL",
+        recurrence: "NONE",
         tags: [],
         subtasks: [],
       }),
     );
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5]);
   });
 });

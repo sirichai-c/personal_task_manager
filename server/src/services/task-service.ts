@@ -3,6 +3,7 @@ import {
   MAX_SUBTASKS_PER_TASK,
   PAGE_SIZE,
   TASK_PRIORITIES,
+  TASK_RECURRENCES,
   TASK_SORTS,
   TASK_STATUSES,
   type DueDateFilter,
@@ -10,6 +11,7 @@ import {
   type Task,
   type TaskList,
   type TaskPriority,
+  type TaskRecurrence,
   type TaskSort,
   type TaskStatus,
 } from "../domain/task.js";
@@ -104,6 +106,26 @@ function validatePriority(value: unknown): TaskPriority {
   return value as TaskPriority;
 }
 
+function validateRecurrence(value: unknown): TaskRecurrence {
+  if (typeof value !== "string" || !TASK_RECURRENCES.includes(value as TaskRecurrence)) {
+    throw new ValidationError("รอบการทำซ้ำไม่ถูกต้อง", {
+      recurrence: "รอบการทำซ้ำไม่ถูกต้อง",
+    });
+  }
+  return value as TaskRecurrence;
+}
+
+function validateRecurrenceDueDate(
+  recurrence: TaskRecurrence,
+  dueDate: string | null,
+): void {
+  if (recurrence !== "NONE" && !dueDate) {
+    throw new ValidationError("งานที่ทำซ้ำต้องมีวันครบกำหนด", {
+      dueDate: "กรุณากำหนดวันสำหรับงานที่ทำซ้ำ",
+    });
+  }
+}
+
 function validateSort(value: unknown): TaskSort {
   if (typeof value !== "string" || !TASK_SORTS.includes(value as TaskSort)) {
     throw new ValidationError("ลำดับการแสดงผลไม่ถูกต้อง", {
@@ -196,6 +218,23 @@ function getWeekBounds(value: string): { start: string; end: string } {
   return { start, end: addDays(start, 6) };
 }
 
+function getNextDueDate(
+  dueDate: string,
+  recurrence: Exclude<TaskRecurrence, "NONE">,
+): string {
+  if (recurrence === "DAILY") {
+    return addDays(dueDate, 1);
+  }
+  if (recurrence === "WEEKLY") {
+    return addDays(dueDate, 7);
+  }
+
+  const [year = 0, month = 0, day = 0] = dueDate.split("-").map(Number);
+  const lastDayOfNextMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const nextDate = new Date(Date.UTC(year, month, Math.min(day, lastDayOfNextMonth)));
+  return nextDate.toISOString().slice(0, 10);
+}
+
 function validatePage(value: unknown): number {
   const page = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
   if (typeof page !== "number" || !Number.isSafeInteger(page) || page < 1) {
@@ -214,14 +253,19 @@ export class TaskService {
 
   create(input: unknown): Task {
     const record = asRecord(input);
+    const dueDate = validateDueDate(record.dueDate);
+    const recurrence =
+      record.recurrence === undefined ? "NONE" : validateRecurrence(record.recurrence);
+    validateRecurrenceDueDate(recurrence, dueDate);
     return this.repository.create({
       title: validateTitle(record.title),
       description: validateDescription(record.description),
       status: "TODO",
-      dueDate: validateDueDate(record.dueDate),
+      dueDate,
       priority:
         record.priority === undefined ? "NORMAL" : validatePriority(record.priority),
       tags: validateTags(record.tags),
+      recurrence,
       now: this.now().toISOString(),
     });
   }
@@ -286,7 +330,7 @@ export class TaskService {
     };
   }
 
-  update(id: number, input: unknown): Task {
+  update(id: number, input: unknown): { task: Task; nextTask: Task | null } {
     const record = asRecord(input);
     const current = this.repository.findById(id);
     if (!current) {
@@ -300,33 +344,48 @@ export class TaskService {
       "dueDate",
       "priority",
       "tags",
+      "recurrence",
     ].some((field) => Object.hasOwn(record, field));
     if (!hasEditableField) {
       throw new ValidationError("กรุณาระบุข้อมูลที่ต้องการแก้ไข");
     }
 
-    const task = this.repository.update(id, {
+    const dueDate = Object.hasOwn(record, "dueDate")
+      ? validateDueDate(record.dueDate)
+      : current.dueDate;
+    const recurrence = Object.hasOwn(record, "recurrence")
+      ? validateRecurrence(record.recurrence)
+      : current.recurrence;
+    validateRecurrenceDueDate(recurrence, dueDate);
+    const status = Object.hasOwn(record, "status")
+      ? validateStatus(record.status)
+      : current.status;
+    const shouldCreateNext =
+      current.status !== "DONE" && status === "DONE" && recurrence !== "NONE";
+
+    const result = this.repository.update(id, {
       title: Object.hasOwn(record, "title") ? validateTitle(record.title) : current.title,
       description: Object.hasOwn(record, "description")
         ? validateDescription(record.description)
         : current.description,
-      status: Object.hasOwn(record, "status")
-        ? validateStatus(record.status)
-        : current.status,
-      dueDate: Object.hasOwn(record, "dueDate")
-        ? validateDueDate(record.dueDate)
-        : current.dueDate,
+      status,
+      dueDate,
       priority: Object.hasOwn(record, "priority")
         ? validatePriority(record.priority)
         : current.priority,
       tags: Object.hasOwn(record, "tags") ? validateTags(record.tags) : current.tags,
+      recurrence,
+      nextDueDate:
+        shouldCreateNext && dueDate
+          ? getNextDueDate(dueDate, recurrence as Exclude<TaskRecurrence, "NONE">)
+          : null,
       now: this.now().toISOString(),
     });
 
-    if (!task) {
+    if (!result) {
       throw new NotFoundError();
     }
-    return task;
+    return result;
   }
 
   delete(id: number): void {

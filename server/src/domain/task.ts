@@ -1,6 +1,7 @@
 export const TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE"] as const;
 export const DUE_DATE_FILTERS = ["TODAY", "THIS_WEEK", "OVERDUE", "NO_DATE"] as const;
 export const TASK_PRIORITIES = ["LOW", "NORMAL", "HIGH"] as const;
+export const TASK_RECURRENCES = ["NONE", "DAILY", "WEEKLY", "MONTHLY"] as const;
 export const TASK_SORTS = [
   "CREATED_DESC",
   "UPDATED_DESC",
@@ -11,6 +12,7 @@ export const TASK_SORTS = [
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type DueDateFilter = (typeof DUE_DATE_FILTERS)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+export type TaskRecurrence = (typeof TASK_RECURRENCES)[number];
 export type TaskSort = (typeof TASK_SORTS)[number];
 
 export interface Subtask {
@@ -29,6 +31,7 @@ export interface Task {
   status: TaskStatus;
   dueDate: string | null;
   priority: TaskPriority;
+  recurrence: TaskRecurrence;
   tags: string[];
   subtasks: Subtask[];
   createdAt: string;

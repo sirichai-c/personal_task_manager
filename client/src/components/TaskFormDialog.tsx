@@ -7,7 +7,13 @@ import {
   type SyntheticEvent,
 } from "react";
 import { ApiError } from "../api/tasks";
-import type { Task, TaskInput, TaskPriority, TaskStatus } from "../types";
+import type {
+  Task,
+  TaskInput,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
+} from "../types";
 
 interface TaskFormDialogProps {
   task: Task | null;
@@ -21,6 +27,7 @@ const EMPTY_FORM: TaskInput = {
   status: "TODO",
   dueDate: "",
   priority: "NORMAL",
+  recurrence: "NONE",
   tags: [],
 };
 
@@ -32,6 +39,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const dueDateId = useId();
   const statusId = useId();
   const priorityId = useId();
+  const recurrenceId = useId();
   const tagsId = useId();
   const [form, setForm] = useState<TaskInput>(() =>
     task
@@ -41,6 +49,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
           status: task.status,
           dueDate: task.dueDate ?? "",
           priority: task.priority,
+          recurrence: task.recurrence,
           tags: task.tags,
         }
       : EMPTY_FORM,
@@ -183,7 +192,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
         <div className="field">
           <div className="field-label-row">
             <label htmlFor={dueDateId}>วันครบกำหนด</label>
-            <span>ไม่บังคับ</span>
+            <span>{form.recurrence === "NONE" ? "ไม่บังคับ" : "ต้องกำหนด"}</span>
           </div>
           <input
             id={dueDateId}
@@ -194,11 +203,50 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
               setForm((current) => ({ ...current, dueDate: event.target.value }))
             }
             aria-invalid={Boolean(fieldErrors.dueDate)}
+            aria-required={form.recurrence !== "NONE"}
             aria-describedby={fieldErrors.dueDate ? `${dueDateId}-error` : undefined}
           />
           {fieldErrors.dueDate ? (
             <span id={`${dueDateId}-error`} className="field-error">
               {fieldErrors.dueDate}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <label htmlFor={recurrenceId}>ทำซ้ำ</label>
+          <select
+            id={recurrenceId}
+            name="recurrence"
+            value={form.recurrence}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                recurrence: event.target.value as TaskRecurrence,
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.recurrence)}
+            aria-describedby={
+              fieldErrors.recurrence
+                ? `${recurrenceId}-error`
+                : form.recurrence !== "NONE"
+                  ? `${recurrenceId}-hint`
+                  : undefined
+            }
+          >
+            <option value="NONE">ไม่ทำซ้ำ</option>
+            <option value="DAILY">ทุกวัน</option>
+            <option value="WEEKLY">ทุกสัปดาห์</option>
+            <option value="MONTHLY">ทุกเดือน</option>
+          </select>
+          {form.recurrence !== "NONE" ? (
+            <span id={`${recurrenceId}-hint`} className="field-hint">
+              เมื่อทำงานเสร็จ ระบบจะสร้างงานรอบถัดไปพร้อมรายการย่อยที่ยังไม่ทำ
+            </span>
+          ) : null}
+          {fieldErrors.recurrence ? (
+            <span id={`${recurrenceId}-error`} className="field-error">
+              {fieldErrors.recurrence}
             </span>
           ) : null}
         </div>

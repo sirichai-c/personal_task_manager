@@ -103,18 +103,23 @@ export async function createTask(input: TaskInput): Promise<Task> {
       description: input.description,
       dueDate: input.dueDate || null,
       priority: input.priority,
+      recurrence: input.recurrence,
       tags: input.tags,
     }),
   });
   return response.item;
 }
 
-export async function updateTask(id: number, input: TaskInput): Promise<Task> {
-  const response = await request<{ item: Task }>(`/api/tasks/${id}`, {
+export interface TaskUpdateResult {
+  item: Task;
+  nextItem?: Task;
+}
+
+export function updateTask(id: number, input: TaskInput): Promise<TaskUpdateResult> {
+  return request<TaskUpdateResult>(`/api/tasks/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ ...input, dueDate: input.dueDate || null }),
   });
-  return response.item;
 }
 
 export function deleteTask(id: number): Promise<void> {

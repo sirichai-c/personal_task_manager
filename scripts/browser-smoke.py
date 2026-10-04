@@ -9,6 +9,7 @@ CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 ARTIFACTS = Path(".test-artifacts")
 TODAY = date.today().isoformat()
 YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
+NEXT_WEEK = (date.today() + timedelta(days=7)).isoformat()
 
 
 def assert_no_horizontal_overflow(page, label: str) -> None:
@@ -76,6 +77,7 @@ with sync_playwright() as playwright:
     title_input.fill("งานทดสอบผ่านเบราว์เซอร์")
     dialog.get_by_label("รายละเอียด").fill("ตรวจเส้นทางจากหน้าเว็บถึง SQLite")
     dialog.get_by_label("วันครบกำหนด").fill(TODAY)
+    dialog.get_by_label("ทำซ้ำ").select_option("WEEKLY")
     dialog.get_by_label("ความสำคัญ").select_option("HIGH")
     dialog.get_by_label("แท็ก").fill("งาน, ด่วน")
     with page.expect_response(
@@ -89,6 +91,7 @@ with sync_playwright() as playwright:
     expect(created_row).to_be_visible()
     expect(created_row.get_by_text("ครบกำหนดวันนี้", exact=True)).to_be_visible()
     expect(created_row.get_by_text("สำคัญสูง", exact=True)).to_be_visible()
+    expect(created_row.get_by_label("ทำซ้ำ ทุกสัปดาห์")).to_be_visible()
     expect(created_row.get_by_text("งาน", exact=True)).to_be_visible()
     expect(created_row.get_by_text("ด่วน", exact=True)).to_be_visible()
 
@@ -166,12 +169,34 @@ with sync_playwright() as playwright:
     ) as update_response:
         edit_dialog.get_by_role("button", name="บันทึกการแก้ไข").click()
     assert update_response.value.status == 200
+    update_payload = update_response.value.json()
+    assert update_payload["nextItem"]["dueDate"] == NEXT_WEEK
+    assert update_payload["nextItem"]["status"] == "TODO"
+    assert update_payload["nextItem"]["recurrence"] == "WEEKLY"
+    next_subtasks = update_payload["nextItem"]["subtasks"]
+    assert len(next_subtasks) == 1
+    assert next_subtasks[0]["title"] == "รวบรวมข้อมูล"
+    assert next_subtasks[0]["completed"] is False
+    expect(
+        page.locator(".toast", has_text="สร้างงานรอบถัดไปแล้ว")
+    ).to_be_visible()
     edited_row = page.locator(
-        ".task-row", has_text="งานทดสอบผ่านเบราว์เซอร์ แก้ไข"
+        ".task-row:has(.status-badge.status-done)",
+        has_text="งานทดสอบผ่านเบราว์เซอร์ แก้ไข",
+    )
+    next_recurring_row = page.locator(
+        ".task-row:has(.status-badge.status-todo)",
+        has_text="งานทดสอบผ่านเบราว์เซอร์ แก้ไข",
     )
     expect(edited_row.get_by_text("เสร็จแล้ว", exact=True)).to_be_visible()
     expect(edited_row.get_by_text("สำคัญต่ำ", exact=True)).to_be_visible()
     expect(edited_row.get_by_text("ส่วนตัว", exact=True)).to_be_visible()
+    expect(next_recurring_row).to_be_visible()
+    expect(next_recurring_row.locator("time.due-date")).to_have_attribute(
+        "datetime", NEXT_WEEK
+    )
+    expect(next_recurring_row.get_by_label("ทำซ้ำ ทุกสัปดาห์")).to_be_visible()
+    expect(next_recurring_row.get_by_text("เสร็จแล้ว 0/1", exact=True)).to_be_visible()
 
     page.get_by_label("สถานะ").select_option("DONE")
     page.get_by_label("กำหนดส่ง").select_option("TODAY")
@@ -312,4 +337,4 @@ assert not unexpected_console_errors, (
     f"Unexpected browser console errors: {unexpected_console_errors}"
 )
 assert not page_errors, f"Uncaught page errors: {page_errors}"
-print("Browser smoke test passed: subtasks create, complete, edit, confirm delete, progress, priority, tags, sorting, due dates, filters, error recovery, 375px, 1440px")
+print("Browser smoke test passed: recurring next task, reset subtasks, priority, tags, sorting, due dates, filters, error recovery, 375px, 1440px")

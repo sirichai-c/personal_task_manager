@@ -45,7 +45,11 @@ export class TaskController {
 
   update = (request: Request, response: Response, next: NextFunction): void => {
     try {
-      response.json({ item: this.service.update(parseId(request.params.id ?? ""), request.body) });
+      const result = this.service.update(parseId(request.params.id ?? ""), request.body);
+      response.json({
+        item: result.task,
+        ...(result.nextTask ? { nextItem: result.nextTask } : {}),
+      });
     } catch (error) {
       next(error);
     }

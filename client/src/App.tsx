@@ -131,10 +131,14 @@ export default function App() {
     if (!editingTask) {
       return;
     }
-    await updateTask(editingTask.id, input);
+    const result = await updateTask(editingTask.id, input);
     setEditingTask(null);
     refresh();
-    announceSuccess("บันทึกการแก้ไขแล้ว");
+    announceSuccess(
+      result.nextItem
+        ? "บันทึกแล้ว และสร้างงานรอบถัดไปแล้ว"
+        : "บันทึกการแก้ไขแล้ว",
+    );
   }
 
   async function handleDelete() {

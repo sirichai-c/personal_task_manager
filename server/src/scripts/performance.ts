@@ -58,6 +58,7 @@ try {
         dueDate: null,
         priority: index % 7 === 0 ? "HIGH" : index % 3 === 0 ? "LOW" : "NORMAL",
         tags: index % 10 === 0 ? ["รายงาน"] : [],
+        recurrence: "NONE",
         now: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
       });
     }

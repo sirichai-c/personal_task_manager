@@ -88,6 +88,20 @@ const migrations = [
         ON subtasks(task_id, created_at ASC, id ASC);
     `,
   },
+  {
+    version: 5,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'NONE'
+        CHECK (recurrence IN ('NONE', 'DAILY', 'WEEKLY', 'MONTHLY'));
+
+      ALTER TABLE tasks ADD COLUMN recurrence_parent_id INTEGER
+        REFERENCES tasks(id) ON DELETE SET NULL;
+
+      CREATE UNIQUE INDEX idx_tasks_recurrence_parent
+        ON tasks(recurrence_parent_id)
+        WHERE recurrence_parent_id IS NOT NULL;
+    `,
+  },
 ] as const;
 
 export function runMigrations(database: DatabaseSync): void {

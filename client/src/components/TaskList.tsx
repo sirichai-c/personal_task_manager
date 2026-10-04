@@ -1,4 +1,10 @@
-import type { SubtaskUpdateInput, Task, TaskPriority, TaskStatus } from "../types";
+import type {
+  SubtaskUpdateInput,
+  Task,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
+} from "../types";
 import { SubtaskChecklist } from "./SubtaskChecklist";
 
 interface TaskListProps {
@@ -38,6 +44,12 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
   LOW: "สำคัญต่ำ",
   NORMAL: "สำคัญปกติ",
   HIGH: "สำคัญสูง",
+};
+
+const RECURRENCE_LABELS: Record<Exclude<TaskRecurrence, "NONE">, string> = {
+  DAILY: "ทุกวัน",
+  WEEKLY: "ทุกสัปดาห์",
+  MONTHLY: "ทุกเดือน",
 };
 
 function getLocalDateValue(): string {
@@ -137,6 +149,14 @@ export function TaskList({
               <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
                 {PRIORITY_LABELS[task.priority]}
               </span>
+              {task.recurrence !== "NONE" ? (
+                <span
+                  className="recurrence-badge"
+                  aria-label={`ทำซ้ำ ${RECURRENCE_LABELS[task.recurrence]}`}
+                >
+                  ↻ {RECURRENCE_LABELS[task.recurrence]}
+                </span>
+              ) : null}
             </div>
             <h2>{task.title}</h2>
             {task.description ? <p>{task.description}</p> : <p className="no-description">ไม่มีรายละเอียด</p>}

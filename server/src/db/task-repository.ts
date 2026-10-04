@@ -4,6 +4,7 @@ import type {
   Subtask,
   Task,
   TaskPriority,
+  TaskRecurrence,
   TaskSort,
   TaskStatus,
 } from "../domain/task.js";
@@ -15,6 +16,7 @@ interface TaskRow {
   status: TaskStatus;
   due_date: string | null;
   priority: TaskPriority;
+  recurrence: TaskRecurrence;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +41,7 @@ interface CreateTaskRecord {
   status: TaskStatus;
   dueDate: string | null;
   priority: TaskPriority;
+  recurrence: TaskRecurrence;
   tags: string[];
   now: string;
 }
@@ -49,8 +52,15 @@ interface UpdateTaskRecord {
   status: TaskStatus;
   dueDate: string | null;
   priority: TaskPriority;
+  recurrence: TaskRecurrence;
   tags: string[];
+  nextDueDate: string | null;
   now: string;
+}
+
+interface UpdateTaskResult {
+  task: Task;
+  nextTask: Task | null;
 }
 
 interface TagRow {
@@ -98,6 +108,7 @@ function toTask(row: TaskRow, tags: string[], subtasks: Subtask[]): Task {
     status: row.status,
     dueDate: row.due_date,
     priority: row.priority,
+    recurrence: row.recurrence,
     tags,
     subtasks,
     createdAt: row.created_at,
@@ -217,8 +228,8 @@ export class TaskRepository {
       const result = this.database
         .prepare(
           `INSERT INTO tasks (
-             title, description, status, due_date, priority, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             title, description, status, due_date, priority, recurrence, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.title,
@@ -226,6 +237,7 @@ export class TaskRepository {
           input.status,
           input.dueDate,
           input.priority,
+          input.recurrence,
           input.now,
           input.now,
         );
@@ -238,7 +250,7 @@ export class TaskRepository {
   findById(id: number): Task | null {
     const row = this.database
       .prepare(
-        `SELECT id, title, description, status, due_date, priority, created_at, updated_at
+        `SELECT id, title, description, status, due_date, priority, recurrence, created_at, updated_at
          FROM tasks
          WHERE id = ?`,
       )
@@ -301,7 +313,7 @@ export class TaskRepository {
     const offset = (query.page - 1) * query.pageSize;
     const rows = this.database
       .prepare(
-        `SELECT id, title, description, status, due_date, priority, created_at, updated_at
+        `SELECT id, title, description, status, due_date, priority, recurrence, created_at, updated_at
          FROM tasks
          ${where}
          ORDER BY ${getOrderBy(query.sort)}
@@ -319,12 +331,12 @@ export class TaskRepository {
     };
   }
 
-  update(id: number, input: UpdateTaskRecord): Task | null {
+  update(id: number, input: UpdateTaskRecord): UpdateTaskResult | null {
     return this.withSavepoint("update_task", () => {
       const result = this.database
         .prepare(
           `UPDATE tasks
-           SET title = ?, description = ?, status = ?, due_date = ?, priority = ?, updated_at = ?
+           SET title = ?, description = ?, status = ?, due_date = ?, priority = ?, recurrence = ?, updated_at = ?
            WHERE id = ?`,
         )
         .run(
@@ -333,6 +345,7 @@ export class TaskRepository {
           input.status,
           input.dueDate,
           input.priority,
+          input.recurrence,
           input.now,
           id,
         );
@@ -340,7 +353,45 @@ export class TaskRepository {
         return null;
       }
       this.replaceTags(id, input.tags);
-      return this.findById(id);
+      let nextTask: Task | null = null;
+      if (input.nextDueDate) {
+        const nextResult = this.database
+          .prepare(
+            `INSERT INTO tasks (
+               title, description, status, due_date, priority, recurrence,
+               recurrence_parent_id, created_at, updated_at
+             ) VALUES (?, ?, 'TODO', ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(recurrence_parent_id)
+               WHERE recurrence_parent_id IS NOT NULL
+             DO NOTHING`,
+          )
+          .run(
+            input.title,
+            input.description,
+            input.nextDueDate,
+            input.priority,
+            input.recurrence,
+            id,
+            input.now,
+            input.now,
+          );
+
+        if (nextResult.changes > 0) {
+          const nextId = Number(nextResult.lastInsertRowid);
+          this.replaceTags(nextId, input.tags);
+          this.database
+            .prepare(
+              `INSERT INTO subtasks (task_id, title, completed, created_at, updated_at)
+               SELECT ?, title, 0, ?, ?
+               FROM subtasks
+               WHERE task_id = ?
+               ORDER BY created_at ASC, id ASC`,
+            )
+            .run(nextId, input.now, input.now, id);
+          nextTask = this.findById(nextId);
+        }
+      }
+      return { task: this.findById(id) as Task, nextTask };
     });
   }
 
