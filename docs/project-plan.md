@@ -1,6 +1,6 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนาและทดสอบลำดับที่ 4 สำเร็จ
+อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนา ทดสอบ push และ deploy ลำดับที่ 4 สำเร็จ
 
 ## ขอบเขต
 
@@ -96,8 +96,8 @@
 11. [x] เพิ่ม priority, หลาย tags, ตัวกรองแบบผสม, การเรียง 4 แบบ และ migration รุ่น 3 (27 tests ผ่าน)
 12. [x] Push ลำดับที่ 3 และบันทึกข้อจำกัด Railway ที่หยุดรับ deployment ชั่วคราว โดยคง production เดิมไว้
 13. [x] เพิ่ม subtasks/checklist, progress, limit 30, cascade delete และ migration รุ่น 4 (34 tests ผ่าน)
-14. [ ] Deploy ลำดับที่ 3–4 ขึ้น Railway และ production smoke test หลัง push
+14. [x] Deploy ลำดับที่ 3–4 ขึ้น Railway และ production smoke test หลัง push
 
 ## ปัญหาค้าง
 
-โค้ดและการทดสอบลำดับที่ 4 เสร็จแล้ว เหลือ push และ deployment ภายนอกตามข้อ 14; Railway ยังแสดง production เดิมจาก commit `96ea5f5` จึงต้องตรวจการเปิดรับ deployment อีกครั้งหลัง push โดยไม่แตะ persistent volume ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+ไม่มีสิ่งค้างในขอบเขตลำดับที่ 4; ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

@@ -112,7 +112,7 @@ docs/                      แผน รายงาน AC และผล perfo
 - Source: GitHub repository `sirichai-c/personal_task_manager`, branch `main`
 - ฐานข้อมูล: SQLite ที่ `/app/data/tasks.sqlite` บน Railway persistent volume ซึ่ง mount ที่ `/app/data`
 
-> สถานะ 2026-10-04: source ของ priority/tags/sorting และ checklist อยู่ใน repository แล้ว แต่ Railway ยังแสดง deployment ล่าสุดเป็น commit `96ea5f5` จึงยังให้ production รุ่นเดิมทำงานต่อโดยไม่แตะ volume; local production build และ browser smoke test ของฟีเจอร์ใหม่ผ่านครบแล้ว
+> สถานะ 2026-10-04: Railway deployment `08faab78-e23a-4b73-9bd0-a08688512baa` จาก feature commit `f0e462d` สำเร็จแล้ว Production smoke test ผ่านทั้ง priority/tags/sorting และ checklist และลบข้อมูลทดสอบออกแล้วโดยไม่แตะข้อมูลอื่นใน volume
 
 ขั้นตอนแบบเข้าใจง่ายสำหรับสร้าง deployment ใหม่:
 

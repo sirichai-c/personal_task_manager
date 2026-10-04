@@ -32,7 +32,7 @@ Production build ผ่าน Chrome headless ด้วยฐานข้อม�
 
 ## Production deployment smoke test
 
-GitHub branch `main` มีฟีเจอร์ใหม่แล้ว แต่ Railway ไม่สร้าง auto-deployment และการส่งผ่าน CLI ถูกปฏิเสธสองครั้งด้วย `Deploys have been paused temporarily` จึงยังไม่อ้างว่า production ผ่านฟีเจอร์ใหม่ Service เดิมจาก commit `96ea5f5` ยังตอบ `/api/health` เป็น HTTP 200 พร้อม `{ "status": "ok" }`, หน้าเว็บตอบ 200 และ persistent volume `/app/data` อยู่สถานะ `READY` โดยไม่ได้แก้หรือลบข้อมูลใด ต้อง retry deployment และ production smoke test เมื่อ Railway เปิดรับ deployment อีกครั้ง
+Railway deployment `08faab78-e23a-4b73-9bd0-a08688512baa` จาก feature commit `f0e462d` สำเร็จ ตรวจแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ frontend asset ตรงกับ local build (`index-CTRTJlax.js`) Production API ผ่าน create task พร้อม priority/tags, create และ complete/rename subtask, combined search/priority/tag/sort, validation 400, cascade delete และ cleanup verification 0 รายการ ข้อมูล smoke test ถูกลบแล้วโดยไม่แตะข้อมูลอื่นใน persistent volume `/app/data`
 
 ## ข้อจำกัดของหลักฐาน
 
