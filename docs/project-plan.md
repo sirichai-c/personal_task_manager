@@ -1,6 +1,6 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนาและทดสอบลำดับที่ 6 สำเร็จ
+อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนา ทดสอบ push และ deploy ลำดับที่ 6 สำเร็จ
 
 ## ขอบเขต
 
@@ -107,7 +107,8 @@
 15. [x] เพิ่มงานซ้ำรายวัน/สัปดาห์/เดือน, สร้างรอบถัดไปแบบไม่ซ้ำ, reset checklist และ migration รุ่น 5 (42 tests ผ่าน)
 16. [x] Push commit `a4ee1cc`, deploy ลำดับที่ 5 ขึ้น Railway และ production smoke test พร้อม cleanup ผ่าน
 17. [x] เพิ่ม in-app reminder วันครบกำหนด/ล่วงหน้า 1/3/7 วัน, ศูนย์เตือน, persistent dismiss และ migration รุ่น 6 (46 tests ผ่าน)
+18. [x] Push commit `664143a`, deploy ลำดับที่ 6 ขึ้น Railway และ production smoke test พร้อม cleanup ผ่าน
 
 ## ปัญหาค้าง
 
-ไม่มีสิ่งค้างในขอบเขตการพัฒนาและทดสอบลำดับที่ 6; ไม่ได้ทำ browser push/email reminder, cross-browser หรือ concurrency test เพราะอยู่นอกขอบเขต in-app reminder และเป้าหมายผู้ใช้คนเดียว อีกทั้งไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+ไม่มีสิ่งค้างในขอบเขตลำดับที่ 6; ไม่ได้ทำ browser push/email reminder, cross-browser หรือ concurrency test เพราะอยู่นอกขอบเขต in-app reminder และเป้าหมายผู้ใช้คนเดียว อีกทั้งไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

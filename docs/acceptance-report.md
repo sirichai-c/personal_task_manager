@@ -34,7 +34,7 @@ Production build ผ่าน Chrome headless ด้วยฐานข้อม�
 
 ## Production deployment smoke test
 
-Railway deployment `b269d53a-cf67-41bb-92cb-8a37545c2f7f` จาก feature commit `a4ee1cc` สำเร็จ ตรวจแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ frontend asset ตรงกับ local build (`index-BEhKcqyR.js`) Production API ผ่าน create งาน `MONTHLY`, validation 400 เมื่อไม่มีวัน, complete งานแล้วได้รอบใหม่จาก 31 มกราคมเป็น 29 กุมภาพันธ์ 2028, คัดลอก tag, reset checklist, PATCH `DONE` ซ้ำและเปิดกลับมาปิดใหม่โดยไม่สร้างลูกซ้ำ ผลค้นหามีเพียงงานเดิมกับรอบใหม่ 2 รายการ จากนั้นลบ smoke task IDs 5–6 และยืนยันผลค้นหา 0 รายการโดยไม่แตะข้อมูลอื่นใน persistent volume `/app/data`
+Railway deployment `a3dea6ad-7422-4b44-a462-23df57b01f36` จาก feature commit `664143a` สำเร็จ ตรวจแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ frontend asset ตรงกับ local build (`index-CGsh0Zxg.js`) Production API ผ่าน validation 400 เมื่อเปิดเตือนโดยไม่มีวัน, การเตือน 0/1/3/7 วัน, ไม่คืนงานที่ยังไม่ถึงเวลาหรือเสร็จแล้ว, persistent dismiss, reactivation เมื่อเลื่อนวัน, งาน `WEEKLY` รอบใหม่คัดลอกเตือนล่วงหน้า 3 วันและ reset checklist โดยไม่รับสถานะซ่อน รวมทั้ง PATCH `DONE` ซ้ำไม่สร้างลูกซ้ำ จากนั้นลบ smoke data 6 งานตาม UUID prefix และยืนยันผลค้นหา 0 รายการโดยไม่แตะข้อมูลอื่นใน persistent volume `/app/data`
 
 ## ข้อจำกัดของหลักฐาน
 
