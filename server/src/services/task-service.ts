@@ -2,6 +2,7 @@ import {
   DUE_DATE_FILTERS,
   MAX_SUBTASKS_PER_TASK,
   MAX_ACTIVE_REMINDERS,
+  MAX_CALENDAR_TASKS,
   PAGE_SIZE,
   TASK_PRIORITIES,
   TASK_RECURRENCES,
@@ -265,6 +266,25 @@ function validatePage(value: unknown): number {
   return page;
 }
 
+function validateMonth(value: unknown): string {
+  const message = "กรุณาระบุเดือนแบบ YYYY-MM";
+  if (typeof value !== "string" || !/^\d{4}-\d{2}$/.test(value)) {
+    throw new ValidationError("เดือนไม่ถูกต้อง", { month: message });
+  }
+
+  const date = new Date(`${value}-01T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 7) !== value) {
+    throw new ValidationError("เดือนไม่ถูกต้อง", { month: message });
+  }
+  return value;
+}
+
+function getNextMonthStart(month: string): string {
+  const date = new Date(`${month}-01T00:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export class TaskService {
   constructor(
     private readonly repository: TaskRepository,
@@ -374,6 +394,29 @@ export class TaskService {
     if (!this.repository.dismissReminder(id)) {
       throw new NotFoundError();
     }
+  }
+
+  listCalendar(monthInput?: unknown): {
+    month: string;
+    items: Task[];
+    totalItems: number;
+    truncated: boolean;
+  } {
+    const month =
+      monthInput === undefined
+        ? this.now().toISOString().slice(0, 7)
+        : validateMonth(monthInput);
+    const result = this.repository.listCalendar({
+      startDate: `${month}-01`,
+      endDateExclusive: getNextMonthStart(month),
+      limit: MAX_CALENDAR_TASKS,
+    });
+    return {
+      month,
+      items: result.items,
+      totalItems: result.totalItems,
+      truncated: result.totalItems > result.items.length,
+    };
   }
 
   update(id: number, input: unknown): { task: Task; nextTask: Task | null } {

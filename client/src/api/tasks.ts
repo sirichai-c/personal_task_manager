@@ -1,4 +1,5 @@
 import type {
+  CalendarResponse,
   DueDateFilter,
   PriorityFilter,
   StatusFilter,
@@ -93,6 +94,10 @@ export function getTasks(
   }
   parameters.set("sort", input.sort);
   return request<TaskListResponse>(`/api/tasks?${parameters.toString()}`, { signal });
+}
+
+export function getCalendar(month: string, signal: AbortSignal): Promise<CalendarResponse> {
+  return request<CalendarResponse>(`/api/calendar?month=${encodeURIComponent(month)}`, { signal });
 }
 
 export async function createTask(input: TaskInput): Promise<Task> {

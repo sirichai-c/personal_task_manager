@@ -120,6 +120,41 @@ with sync_playwright() as playwright:
     page.wait_for_load_state("networkidle")
     expect(page.locator(".reminder-center")).to_have_count(0)
 
+    with page.expect_response(
+        lambda response: "/api/calendar?month=" in response.url
+        and response.request.method == "GET"
+    ) as calendar_response:
+        page.get_by_role("button", name="ปฏิทิน", exact=True).click()
+    assert calendar_response.value.status == 200
+    expect(page.locator(".calendar-grid")).to_be_visible()
+    calendar_task = page.locator(
+        ".calendar-grid .calendar-task", has_text="งานทดสอบผ่านเบราว์เซอร์"
+    )
+    expect(calendar_task).to_be_visible()
+    page.screenshot(path=str(ARTIFACTS / "calendar-desktop.png"), full_page=True)
+    calendar_task.click()
+    calendar_dialog = page.locator("dialog[open]")
+    expect(calendar_dialog.get_by_label("วันครบกำหนด")).to_have_value(TODAY)
+    expect(calendar_dialog.get_by_label("เตือนฉัน")).to_have_value(
+        "SEVEN_DAYS_BEFORE"
+    )
+    calendar_dialog.get_by_role("button", name="ปิดหน้าต่าง").click()
+    with page.expect_response(
+        lambda response: "/api/calendar?month=" in response.url
+        and response.request.method == "GET"
+    ) as next_month_response:
+        page.get_by_role("button", name="เดือนถัดไป").click()
+    assert next_month_response.value.status == 200
+    expect(page.get_by_text("เดือนนี้ยังไม่มีงานที่กำหนดวันส่ง", exact=False).first).to_be_visible()
+    with page.expect_response(
+        lambda response: "/api/calendar?month=" in response.url
+        and response.request.method == "GET"
+    ) as current_month_response:
+        page.get_by_role("button", name="เดือนนี้", exact=True).click()
+    assert current_month_response.value.status == 200
+    expect(calendar_task).to_be_visible()
+    page.get_by_role("button", name="รายการ", exact=True).click()
+
     checklist = created_row.locator(".checklist")
     checklist.locator("summary").click()
     expect(checklist.get_by_text("ยังไม่มีรายการ", exact=True)).to_be_visible()
@@ -357,6 +392,22 @@ with sync_playwright() as playwright:
     assert_no_horizontal_overflow(mobile_page, "mobile populated state")
     mobile_page.screenshot(path=str(ARTIFACTS / "mobile-375.png"), full_page=True)
 
+    with mobile_page.expect_response(
+        lambda response: "/api/calendar?month=" in response.url
+        and response.request.method == "GET"
+    ) as mobile_calendar_response:
+        mobile_page.get_by_role("button", name="ปฏิทิน", exact=True).click()
+    assert mobile_calendar_response.value.status == 200
+    expect(mobile_page.locator(".calendar-agenda")).to_be_visible()
+    expect(mobile_page.locator(".calendar-grid")).to_be_hidden()
+    expect(
+        mobile_page.locator(".calendar-agenda .calendar-task", has_text=preserved_title)
+    ).to_be_visible()
+    assert_no_horizontal_overflow(mobile_page, "mobile calendar state")
+    mobile_page.screenshot(
+        path=str(ARTIFACTS / "calendar-mobile-375.png"), full_page=True
+    )
+
     mobile.close()
     desktop.close()
     browser.close()
@@ -374,4 +425,4 @@ assert not unexpected_console_errors, (
     f"Unexpected browser console errors: {unexpected_console_errors}"
 )
 assert not page_errors, f"Uncaught page errors: {page_errors}"
-print("Browser smoke test passed: due reminders open/dismiss/persist, recurring next task, reset subtasks, priority, tags, filters, error recovery, 375px, 1440px")
+print("Browser smoke test passed: monthly calendar desktop/mobile, due reminders open/dismiss/persist, recurring next task, reset subtasks, priority, tags, filters, error recovery, 375px, 1440px")

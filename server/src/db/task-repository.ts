@@ -45,6 +45,12 @@ interface ReminderQuery {
   limit: number;
 }
 
+interface CalendarQuery {
+  startDate: string;
+  endDateExclusive: string;
+  limit: number;
+}
+
 interface CreateTaskRecord {
   title: string;
   description: string;
@@ -382,6 +388,37 @@ export class TaskRepository {
     return rows.map((row) =>
       toTask(row, tagsByTask.get(row.id) ?? [], subtasksByTask.get(row.id) ?? []),
     );
+  }
+
+  listCalendar(query: CalendarQuery): { items: Task[]; totalItems: number } {
+    const parameters = [query.startDate, query.endDateExclusive] as const;
+    const countRow = this.database
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM tasks
+         WHERE due_date >= ? AND due_date < ?`,
+      )
+      .get(...parameters) as { count: number };
+    const rows = this.database
+      .prepare(
+        `SELECT id, title, description, status, due_date, priority, recurrence, reminder,
+           created_at, updated_at
+         FROM tasks
+         WHERE due_date >= ? AND due_date < ?
+         ORDER BY due_date ASC,
+           CASE priority WHEN 'HIGH' THEN 3 WHEN 'NORMAL' THEN 2 ELSE 1 END DESC,
+           created_at DESC, id DESC
+         LIMIT ?`,
+      )
+      .all(...parameters, query.limit) as unknown as TaskRow[];
+    const tagsByTask = this.loadTags(rows.map((row) => row.id));
+    const subtasksByTask = this.loadSubtasks(rows.map((row) => row.id));
+    return {
+      items: rows.map((row) =>
+        toTask(row, tagsByTask.get(row.id) ?? [], subtasksByTask.get(row.id) ?? []),
+      ),
+      totalItems: countRow.count,
+    };
   }
 
   dismissReminder(id: number): boolean {

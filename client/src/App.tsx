@@ -6,6 +6,7 @@ import {
   deleteSubtask,
   deleteTask,
   dismissReminder,
+  getCalendar,
   getReminders,
   getTasks,
   updateSubtask,
@@ -14,9 +15,11 @@ import {
 import { DeleteTaskDialog } from "./components/DeleteTaskDialog";
 import { Pagination } from "./components/Pagination";
 import { ReminderCenter } from "./components/ReminderCenter";
+import { TaskCalendar } from "./components/TaskCalendar";
 import { TaskFormDialog } from "./components/TaskFormDialog";
 import { TaskList } from "./components/TaskList";
 import type {
+  CalendarResponse,
   DueDateFilter,
   PriorityFilter,
   StatusFilter,
@@ -26,6 +29,8 @@ import type {
   TaskListResponse,
   TaskSort,
 } from "./types";
+
+type ViewMode = "LIST" | "CALENDAR";
 
 interface Filters {
   search: string;
@@ -53,8 +58,22 @@ function getLocalDateValue(): string {
   return `${year}-${month}-${day}`;
 }
 
+function shiftMonth(value: string, amount: number): string {
+  const date = new Date(`${value}-01T00:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() + amount);
+  return date.toISOString().slice(0, 7);
+}
+
 export default function App() {
   const [data, setData] = useState<TaskListResponse | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("LIST");
+  const [calendarMonth, setCalendarMonth] = useState(getLocalDateValue().slice(0, 7));
+  const [calendarData, setCalendarData] = useState<CalendarResponse | null>(null);
+  const [calendarSettledRequestKey, setCalendarSettledRequestKey] = useState("");
+  const [calendarRequestError, setCalendarRequestError] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
   const [reminders, setReminders] = useState<Task[]>([]);
   const [reminderError, setReminderError] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -69,6 +88,7 @@ export default function App() {
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const requestKey = `${filters.search}\u0000${filters.status}\u0000${filters.dueDate}\u0000${filters.priority}\u0000${filters.tag}\u0000${filters.sort}\u0000${page}\u0000${refreshKey}`;
+  const calendarRequestKey = `${calendarMonth}\u0000${refreshKey}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -90,6 +110,31 @@ export default function App() {
       });
     return () => controller.abort();
   }, [filters, page, requestKey]);
+
+  useEffect(() => {
+    if (viewMode !== "CALENDAR") {
+      return;
+    }
+
+    const controller = new AbortController();
+    getCalendar(calendarMonth, controller.signal)
+      .then((response) => {
+        setCalendarData(response);
+        setCalendarRequestError(null);
+        setCalendarSettledRequestKey(calendarRequestKey);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setCalendarRequestError({
+          key: calendarRequestKey,
+          message: error instanceof ApiError ? error.message : "โหลดปฏิทินไม่สำเร็จ",
+        });
+        setCalendarSettledRequestKey(calendarRequestKey);
+      });
+    return () => controller.abort();
+  }, [calendarMonth, calendarRequestKey, viewMode]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -256,6 +301,8 @@ export default function App() {
     announceSuccess("ลบรายการย่อยแล้ว");
   }
 
+  const currentCalendarData =
+    calendarSettledRequestKey === calendarRequestKey ? calendarData : null;
   const totalItems = data?.pagination.totalItems ?? 0;
   const hasFilters = Boolean(
     filters.search ||
@@ -268,6 +315,12 @@ export default function App() {
   const isLoading = settledRequestKey !== requestKey;
   const loadError = requestError?.key === requestKey ? requestError.message : "";
   const showInitialLoading = isLoading && !data;
+  const isCalendarLoading =
+    viewMode === "CALENDAR" && calendarSettledRequestKey !== calendarRequestKey;
+  const calendarLoadError =
+    calendarRequestError?.key === calendarRequestKey ? calendarRequestError.message : "";
+  const visibleTotalItems = viewMode === "CALENDAR" ? currentCalendarData?.totalItems ?? 0 : totalItems;
+  const isVisibleLoading = viewMode === "CALENDAR" ? isCalendarLoading : showInitialLoading;
 
   return (
     <div className="app-shell">
@@ -279,9 +332,11 @@ export default function App() {
           <div>
             <h1>งานของฉัน</h1>
             <p>
-              {isLoading && !data
+              {isVisibleLoading
                 ? "กำลังเปิดสมุดงาน…"
-                : `${totalItems.toLocaleString("th-TH")} งานในรายการนี้`}
+                : viewMode === "CALENDAR"
+                  ? `${visibleTotalItems.toLocaleString("th-TH")} งานในเดือนนี้`
+                  : `${visibleTotalItems.toLocaleString("th-TH")} งานในรายการนี้`}
             </p>
           </div>
         </div>
@@ -291,7 +346,8 @@ export default function App() {
       </header>
 
       <main className="workspace">
-        <form className="filter-bar" role="search" onSubmit={applySearch}>
+        {viewMode === "LIST" ? (
+          <form className="filter-bar" role="search" onSubmit={applySearch}>
           <div className="search-field">
             <label htmlFor="task-search">ค้นหาจากชื่องาน</label>
             <div className="search-input-wrap">
@@ -401,7 +457,8 @@ export default function App() {
               ล้างตัวกรอง
             </button>
           ) : null}
-        </form>
+          </form>
+        ) : null}
 
         <ReminderCenter
           tasks={reminders}
@@ -414,17 +471,39 @@ export default function App() {
 
         <div className="list-heading">
           <div>
-            <h2>รายการงาน</h2>
+            <h2>{viewMode === "LIST" ? "รายการงาน" : "ปฏิทินงาน"}</h2>
             <p>
-              {hasFilters
-                ? "ผลลัพธ์ตามตัวกรองและลำดับที่เลือก"
-                : "เรียงจากงานที่เพิ่มล่าสุด"}
+              {viewMode === "CALENDAR"
+                ? "ดูงานตามกำหนดส่งในแต่ละวัน"
+                : hasFilters
+                  ? "ผลลัพธ์ตามตัวกรองและลำดับที่เลือก"
+                  : "เรียงจากงานที่เพิ่มล่าสุด"}
             </p>
           </div>
-          {isLoading && data ? <span className="refresh-indicator">กำลังอัปเดต…</span> : null}
+          <div className="view-controls">
+            {(viewMode === "LIST" ? isLoading && data : isCalendarLoading && currentCalendarData) ? (
+              <span className="refresh-indicator">กำลังอัปเดต…</span>
+            ) : null}
+            <div className="view-switch" aria-label="รูปแบบการแสดงงาน">
+              <button
+                type="button"
+                aria-pressed={viewMode === "LIST"}
+                onClick={() => setViewMode("LIST")}
+              >
+                รายการ
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === "CALENDAR"}
+                onClick={() => setViewMode("CALENDAR")}
+              >
+                ปฏิทิน
+              </button>
+            </div>
+          </div>
         </div>
 
-        {loadError ? (
+        {viewMode === "LIST" && loadError ? (
           <div className="load-error" role="alert">
             <div>
               <strong>โหลดรายการไม่สำเร็จ</strong>
@@ -436,7 +515,7 @@ export default function App() {
           </div>
         ) : null}
 
-        {loadError && !data ? null : (
+        {viewMode === "LIST" && !(loadError && !data) ? (
           <TaskList
             tasks={data?.items ?? []}
             isLoading={showInitialLoading}
@@ -449,10 +528,25 @@ export default function App() {
             onUpdateSubtask={handleUpdateSubtask}
             onDeleteSubtask={handleDeleteSubtask}
           />
-        )}
+        ) : null}
 
-        {data ? (
+        {viewMode === "LIST" && data ? (
           <Pagination {...data.pagination} onPageChange={setPage} />
+        ) : null}
+
+        {viewMode === "CALENDAR" ? (
+          <TaskCalendar
+            data={currentCalendarData}
+            error={calendarLoadError}
+            isLoading={isCalendarLoading}
+            month={calendarMonth}
+            today={getLocalDateValue()}
+            onPreviousMonth={() => setCalendarMonth((current) => shiftMonth(current, -1))}
+            onNextMonth={() => setCalendarMonth((current) => shiftMonth(current, 1))}
+            onToday={() => setCalendarMonth(getLocalDateValue().slice(0, 7))}
+            onRetry={refresh}
+            onOpen={setEditingTask}
+          />
         ) : null}
       </main>
 

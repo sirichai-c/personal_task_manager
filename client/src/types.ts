@@ -64,6 +64,13 @@ export interface TaskListResponse {
   };
 }
 
+export interface CalendarResponse {
+  month: string;
+  items: Task[];
+  totalItems: number;
+  truncated: boolean;
+}
+
 export interface TaskInput {
   title: string;
   description: string;

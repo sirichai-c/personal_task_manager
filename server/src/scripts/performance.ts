@@ -91,6 +91,7 @@ try {
   const reminderSamples = await measure(
     `${origin}/api/reminders?referenceDate=2026-10-15`,
   );
+  const calendarSamples = await measure(`${origin}/api/calendar?month=2026-10`);
 
   console.log(
     JSON.stringify(
@@ -105,6 +106,7 @@ try {
         listPage: summarize(listSamples),
         searchAndFilter: summarize(searchSamples),
         activeReminders: summarize(reminderSamples),
+        calendarMonth: summarize(calendarSamples),
       },
       null,
       2,

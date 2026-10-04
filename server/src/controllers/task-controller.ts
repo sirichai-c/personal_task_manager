@@ -52,6 +52,14 @@ export class TaskController {
     }
   };
 
+  listCalendar = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      response.json(this.service.listCalendar(request.query.month));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = (request: Request, response: Response, next: NextFunction): void => {
     try {
       response.status(201).json({ item: this.service.create(request.body) });

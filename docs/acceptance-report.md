@@ -17,7 +17,7 @@
 | AC-11 สถานะ UI | ผ่าน | browser test ตรวจ empty, load error + retry, mutation error และ success toast; loading skeleton อยู่ใน initial fetch path |
 | AC-12 ฟอร์ม/accessibility | ผ่าน | browser test ยืนยัน focus ชื่องานหลังเปิด dialog, cancel dialog, disabled ระหว่าง submit และรักษาค่าหลังจำลอง 500 |
 | AC-13 การเชื่อมจริง | ผ่าน | browser test บน production build ใช้ React → Express → SQLite จริง; ไม่มี mock ในเส้นทางสำเร็จ |
-| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 46 tests ผ่าน ครอบคลุม validation/CRUD/search/filters/sorts/due date/tags/subtasks/recurrence/reminders/dismiss/cascade/migration/pagination/404/persistence |
+| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 48 tests ผ่าน ครอบคลุม validation/CRUD/search/filters/sorts/due date/tags/subtasks/recurrence/reminders/calendar/dismiss/cascade/migration/pagination/404/persistence |
 | AC-15 ประสิทธิภาพ | ผ่าน | `npm run performance`: 5,000 rows, 20 requests/scenario; ดู `docs/performance-report.md` |
 | AC-16 คุณภาพ build | ผ่าน | `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` ผ่านจริง |
 | AC-17 การส่งมอบ | ผ่าน | README, `.env.example`, lockfile, database init/run/test instructions และ URL ครบ |
@@ -27,10 +27,11 @@
 | AC-21 Checklist | ผ่าน | API/browser tests ครอบคลุมเพิ่ม ติ๊ก แก้ชื่อ ยืนยันลบ progress, limit 30, nested 404, cascade delete และ persistence |
 | AC-22 งานทำซ้ำ | ผ่าน | API/browser tests ครอบคลุม create/edit/validation, daily/weekly/monthly, สิ้นเดือน/ข้ามปี/ปีอธิกสุรทิน, สร้างรอบถัดไปหนึ่งครั้ง, คัดลอก tags และ reset checklist |
 | AC-23 การเตือน | ผ่าน | API/browser tests ครอบคลุมการเตือน 0/1/3/7 วัน, งานเกินกำหนด, ไม่รวมงานเสร็จ/ยังไม่ถึงเวลา, validation, เปิดงาน, persistent dismiss, reactivation เมื่อเลื่อนวัน และคัดลอกสู่งานซ้ำรอบใหม่ |
+| AC-24 ปฏิทินรายเดือน | ผ่าน | API tests ตรวจขอบเขตต้น/กลาง/สิ้นเดือน, ไม่รวมเดือนข้างเคียง/งานไม่มีวัน, รวม `DONE`, ค่าเดือนปัจจุบันและ validation; Chrome ตรวจเปลี่ยนเดือน/กลับเดือนนี้/เปิดงาน, grid 1440px และ agenda 375px |
 
 ## Browser smoke test
 
-Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: ตั้งเตือนล่วงหน้า 7 วัน, แสดงศูนย์เตือน, เปิดงาน, ซ่อนและ reload แล้วยังซ่อนอยู่, งานรายสัปดาห์รอบใหม่ได้รับการเตือนโดยไม่รับสถานะซ่อน, รวมทั้ง checklist เพิ่ม/ติ๊ก/แก้/ยืนยันลบ/progress, priority/tags/sorting, due date/overdue, combined filters, load error/retry, task create/edit/delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
+Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: ปฏิทินเปลี่ยนเดือน/กลับเดือนนี้/เปิดงาน, desktop grid, mobile agenda, ตั้งเตือนล่วงหน้า 7 วัน, แสดงศูนย์เตือน, เปิดงาน, ซ่อนและ reload แล้วยังซ่อนอยู่, งานรายสัปดาห์รอบใหม่ได้รับการเตือนโดยไม่รับสถานะซ่อน, รวมทั้ง checklist เพิ่ม/ติ๊ก/แก้/ยืนยันลบ/progress, priority/tags/sorting, due date/overdue, combined filters, load error/retry, task create/edit/delete, simulated save error/recovery, responsive 375px/1440px และไม่มี horizontal overflow, uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
 
 ## Production deployment smoke test
 

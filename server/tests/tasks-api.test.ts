@@ -330,6 +330,65 @@ describe("tasks API", () => {
     );
   });
 
+  it("lists every dated task in a requested calendar month", async () => {
+    const server = await startServer();
+    await createTask(server, "งานก่อนเดือน", "", "2026-09-30");
+    await createTask(server, "ต้นเดือน", "", "2026-10-01", "LOW");
+    await createTask(server, "กลางเดือนสำคัญต่ำ", "", "2026-10-15", "LOW");
+    const middle = await createTask(server, "กลางเดือน", "", "2026-10-15", "HIGH");
+    await createTask(server, "สิ้นเดือน", "", "2026-10-31", "NORMAL");
+    await createTask(server, "งานเดือนถัดไป", "", "2026-11-01");
+    await createTask(server, "งานไม่มีวัน");
+    await request(server, `/api/tasks/${middle.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "DONE" }),
+    });
+
+    const response = await request<{
+      month: string;
+      items: Array<{ title: string; status: string; dueDate: string }>;
+      totalItems: number;
+      truncated: boolean;
+    }>(server, "/api/calendar?month=2026-10");
+
+    expect(response.status).toBe(200);
+    expect(response.body.month).toBe("2026-10");
+    expect(response.body.items.map((item) => item.title)).toEqual([
+      "ต้นเดือน",
+      "กลางเดือน",
+      "กลางเดือนสำคัญต่ำ",
+      "สิ้นเดือน",
+    ]);
+    expect(response.body.items[1]).toMatchObject({
+      status: "DONE",
+      dueDate: "2026-10-15",
+    });
+    expect(response.body).toMatchObject({ totalItems: 4, truncated: false });
+  });
+
+  it("uses the current month by default and rejects an invalid calendar month", async () => {
+    const server = await startServer(
+      join(testDirectory, "calendar-default.sqlite"),
+      () => new Date("2026-10-04T08:00:00.000Z"),
+    );
+    await createTask(server, "งานเดือนปัจจุบัน", "", "2026-10-20");
+
+    const current = await request<{ month: string; items: Array<{ title: string }> }>(
+      server,
+      "/api/calendar",
+    );
+    const invalid = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      "/api/calendar?month=2026-13",
+    );
+
+    expect(current.status).toBe(200);
+    expect(current.body.month).toBe("2026-10");
+    expect(current.body.items.map((item) => item.title)).toEqual(["งานเดือนปัจจุบัน"]);
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.error.fields.month).toBeTruthy();
+  });
+
   it("creates one next occurrence with copied tags and reset subtasks when completed", async () => {
     let currentTime = "2026-10-04T08:00:00.000Z";
     const server = await startServer(

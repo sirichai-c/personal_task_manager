@@ -60,3 +60,4 @@ export interface TaskList {
 export const PAGE_SIZE = 20;
 export const MAX_SUBTASKS_PER_TASK = 30;
 export const MAX_ACTIVE_REMINDERS = 50;
+export const MAX_CALENDAR_TASKS = 500;

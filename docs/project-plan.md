@@ -1,10 +1,10 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนา ทดสอบ push และ deploy ลำดับที่ 6 สำเร็จ
+อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนาและทดสอบลำดับที่ 7 สำเร็จ รอ push/deploy
 
 ## ขอบเขต
 
-เว็บแอปผู้ใช้คนเดียวสำหรับเพิ่ม ค้นหา กรอง กำหนดวันครบกำหนด จัด priority/หลาย tags เลือกลำดับแสดงผล แบ่งงานเป็น checklist ตั้งงานซ้ำ ตั้งการเตือนในแอป แก้ไขสถานะ และลบงาน ข้อมูลเก็บในไฟล์ SQLite และคงอยู่หลังเริ่มเซิร์ฟเวอร์ใหม่ งานหลักไม่รวมบัญชีผู้ใช้ การแชร์ การแจ้งเตือนภายนอก หรือ AI หลังส่งมอบงานหลัก ผู้ใช้ขยายขอบเขตให้เพิ่มวันครบกำหนด, priority/tags/sorting, ลำดับที่ 4 คือ subtasks/checklist, ลำดับที่ 5 คืองานซ้ำ และลำดับที่ 6 คือการเตือนกำหนดส่งในแอป
+เว็บแอปผู้ใช้คนเดียวสำหรับเพิ่ม ค้นหา กรอง กำหนดวันครบกำหนด จัด priority/หลาย tags เลือกลำดับแสดงผล แบ่งงานเป็น checklist ตั้งงานซ้ำ ตั้งการเตือนในแอป ดูปฏิทินรายเดือน แก้ไขสถานะ และลบงาน ข้อมูลเก็บในไฟล์ SQLite และคงอยู่หลังเริ่มเซิร์ฟเวอร์ใหม่ งานหลักไม่รวมบัญชีผู้ใช้ การแชร์ การแจ้งเตือนภายนอก หรือ AI หลังส่งมอบงานหลัก ผู้ใช้ขยายขอบเขตให้เพิ่มวันครบกำหนด, priority/tags/sorting, ลำดับที่ 4 คือ subtasks/checklist, ลำดับที่ 5 คืองานซ้ำ, ลำดับที่ 6 คือการเตือนกำหนดส่งในแอป และลำดับที่ 7 คือปฏิทินรายเดือน
 
 ## Acceptance criteria
 
@@ -31,6 +31,7 @@
 - **AC-21 Checklist:** เพิ่มรายการย่อยได้ไม่เกิน 30 รายการต่องาน ติ๊กเสร็จ แก้ชื่อ ยืนยันก่อนลบ แสดงความคืบหน้า และ cascade delete เมื่อเอางานหลักออกได้
 - **AC-22 งานทำซ้ำ:** กำหนด `DAILY | WEEKLY | MONTHLY` ได้เมื่อมีวันครบกำหนด เมื่อเปลี่ยนเป็น `DONE` ระบบสร้าง `TODO` รอบถัดไปเพียงครั้งเดียว คัดลอกข้อมูลและ checklist โดยรีเซ็ตสถานะย่อย และคำนวณสิ้นเดือน/ปีอธิกสุรทินถูกต้อง
 - **AC-23 การเตือน:** เลือกเตือนวันครบกำหนดหรือล่วงหน้า 1/3/7 วันได้ ศูนย์เตือนอ่านทุกงานไม่ขึ้นกับ pagination ไม่แสดงงานเสร็จหรือยังไม่ถึงช่วง ซ่อนเฉพาะรอบปัจจุบันได้ และกลับมาเตือนเมื่อเปลี่ยนวันครบกำหนด
+- **AC-24 ปฏิทินรายเดือน:** เลือกเดือนก่อน/ถัดไปและกลับเดือนปัจจุบันได้ แสดงทุกงานที่มีวันครบกำหนดในเดือนรวมงาน `DONE` เรียงวัน/priority อย่างคงที่ เปิดแก้ไขงานได้ และเปลี่ยนเป็น agenda ตามวันที่บนจอเล็ก
 
 ## สมมติฐานและการตัดสินใจ
 
@@ -44,11 +45,12 @@
 - ไม่มี CORS dependency เพราะ Vite proxy ในโหมดพัฒนาและ Express เสิร์ฟไฟล์ build แบบ same-origin
 - งานทำซ้ำใช้วันครบกำหนดเดิมเป็นฐาน ไม่ใช่วันที่กดเสร็จ; งานรายเดือนที่ไม่มีเลขวันเดิมในเดือนถัดไปจะเลื่อนไปวันสุดท้ายของเดือน งานเดิมยังเป็นประวัติ `DONE` และมี unique partial index ป้องกันการสร้างรอบลูกซ้ำ
 - การเตือนเป็น in-app reminder ใช้วันที่ท้องถิ่นจาก browser เป็น `referenceDate` ไม่ขอ browser notification permission และไม่ส่งอีเมล; แสดงได้สูงสุด 50 งานต่อครั้งเพื่อไม่ให้หน้าแรกยาวไม่จำกัด
+- ปฏิทินเริ่มสัปดาห์วันจันทร์ แสดงเฉพาะงานที่มี `dueDate` และไม่รับตัวกรองของมุมมองรายการ จอไม่เกิน 640px ใช้ agenda ตามวันที่แทนตาราง 7 คอลัมน์; API จำกัด 500 งานต่อเดือนและแจ้ง `truncated` เมื่อเกิน
 - `.codex/` เป็นค่าท้องถิ่นเดิมและไม่รวมใน Git
 
 ## โครงสร้างข้อมูล
 
-`tasks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, status TEXT, due_date TEXT NULL, priority TEXT, recurrence TEXT, recurrence_parent_id INTEGER NULL, reminder TEXT, reminder_dismissed_for TEXT NULL, created_at TEXT, updated_at TEXT)`, `tags`, `task_tags` และ `subtasks(id, task_id, title, completed, created_at, updated_at)` พร้อม CHECK constraints, foreign keys และ indexes ตาม query การสร้าง schema ใช้ migration SQL ตอนเปิดแอป โดยรุ่น 2 เพิ่ม `due_date`, รุ่น 3 เพิ่ม priority/tags, รุ่น 4 เพิ่ม checklist, รุ่น 5 เพิ่ม recurrence/สายสัมพันธ์งานรอบถัดไป และรุ่น 6 เพิ่ม reminder พร้อม partial index สำหรับงานเตือนที่ยังไม่เสร็จให้งานเดิมโดยไม่สูญเสียข้อมูล
+`tasks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, status TEXT, due_date TEXT NULL, priority TEXT, recurrence TEXT, recurrence_parent_id INTEGER NULL, reminder TEXT, reminder_dismissed_for TEXT NULL, created_at TEXT, updated_at TEXT)`, `tags`, `task_tags` และ `subtasks(id, task_id, title, completed, created_at, updated_at)` พร้อม CHECK constraints, foreign keys และ indexes ตาม query การสร้าง schema ใช้ migration SQL ตอนเปิดแอป โดยรุ่น 2 เพิ่ม `due_date`, รุ่น 3 เพิ่ม priority/tags, รุ่น 4 เพิ่ม checklist, รุ่น 5 เพิ่ม recurrence/สายสัมพันธ์งานรอบถัดไป และรุ่น 6 เพิ่ม reminder พร้อม partial index สำหรับงานเตือนที่ยังไม่เสร็จให้งานเดิมโดยไม่สูญเสียข้อมูล ลำดับที่ 7 ไม่ต้องเพิ่ม migration เพราะ query ช่วงเดือนใช้ index `due_date` เดิมได้
 
 ## สถาปัตยกรรม
 
@@ -77,6 +79,11 @@
        ─ งานแถว...
                                       [ก่อนหน้า  1/3  ถัดไป]
 
+ปฏิทิน: [รายการ | ปฏิทิน]
+         [‹] ตุลาคม 2569 [›]                    [เดือนนี้]
+         [จ.][อ.][พ.][พฤ.][ศ.][ส.][อา.]
+         [วัน + งานตามกำหนดส่ง .................]
+
 มือถือ: งานของฉัน                       [เพิ่ม]
         [ค้นหา.................................]
         [แท็ก.....................................]
@@ -86,6 +93,10 @@
         ─ สถานะ/priority/↻รอบ
           ชื่อ/รายละเอียด/tags
           วันที่             [แก้ไข] [ลบ]
+
+มือถือปฏิทิน: [‹] ตุลาคม 2569 [›] / [เดือนนี้]
+               วันอาทิตย์ที่ 4 ตุลาคม [วันนี้]
+               └ งานตามกำหนดส่ง (แตะเพื่อเปิด)
 ```
 
 ## แผนดำเนินงานและสถานะ
@@ -108,7 +119,9 @@
 16. [x] Push commit `a4ee1cc`, deploy ลำดับที่ 5 ขึ้น Railway และ production smoke test พร้อม cleanup ผ่าน
 17. [x] เพิ่ม in-app reminder วันครบกำหนด/ล่วงหน้า 1/3/7 วัน, ศูนย์เตือน, persistent dismiss และ migration รุ่น 6 (46 tests ผ่าน)
 18. [x] Push commit `664143a`, deploy ลำดับที่ 6 ขึ้น Railway และ production smoke test พร้อม cleanup ผ่าน
+19. [x] เพิ่มปฏิทินรายเดือน, การนำทางเดือน, เปิดแก้ไขจากปฏิทิน และ mobile agenda (48 tests ผ่าน)
+20. [ ] Push/deploy ลำดับที่ 7 ขึ้น Railway และทำ production smoke test พร้อม cleanup
 
 ## ปัญหาค้าง
 
-ไม่มีสิ่งค้างในขอบเขตลำดับที่ 6; ไม่ได้ทำ browser push/email reminder, cross-browser หรือ concurrency test เพราะอยู่นอกขอบเขต in-app reminder และเป้าหมายผู้ใช้คนเดียว อีกทั้งไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+เหลือ push/deploy และ production smoke test ของลำดับที่ 7; ไม่ได้ทำ drag-and-drop ปฏิทิน, browser push/email reminder, cross-browser หรือ concurrency test เพราะอยู่นอกขอบเขตและเป้าหมายผู้ใช้คนเดียว อีกทั้งไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

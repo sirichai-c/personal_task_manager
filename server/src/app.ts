@@ -50,6 +50,7 @@ export function createApplication(options: ApplicationOptions): ApplicationHandl
   });
   app.get("/api/reminders", controller.listReminders);
   app.delete("/api/reminders/:id", controller.dismissReminder);
+  app.get("/api/calendar", controller.listCalendar);
   app.use("/api/tasks", createTaskRouter(controller));
 
   if (options.clientDistPath) {
