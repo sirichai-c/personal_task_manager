@@ -3,6 +3,7 @@ import type {
   Task,
   TaskPriority,
   TaskRecurrence,
+  TaskReminder,
   TaskStatus,
 } from "../types";
 import { SubtaskChecklist } from "./SubtaskChecklist";
@@ -50,6 +51,13 @@ const RECURRENCE_LABELS: Record<Exclude<TaskRecurrence, "NONE">, string> = {
   DAILY: "ทุกวัน",
   WEEKLY: "ทุกสัปดาห์",
   MONTHLY: "ทุกเดือน",
+};
+
+const REMINDER_LABELS: Record<Exclude<TaskReminder, "NONE">, string> = {
+  ON_DUE_DATE: "เตือนวันครบกำหนด",
+  ONE_DAY_BEFORE: "เตือนล่วงหน้า 1 วัน",
+  THREE_DAYS_BEFORE: "เตือนล่วงหน้า 3 วัน",
+  SEVEN_DAYS_BEFORE: "เตือนล่วงหน้า 7 วัน",
 };
 
 function getLocalDateValue(): string {
@@ -155,6 +163,11 @@ export function TaskList({
                   aria-label={`ทำซ้ำ ${RECURRENCE_LABELS[task.recurrence]}`}
                 >
                   ↻ {RECURRENCE_LABELS[task.recurrence]}
+                </span>
+              ) : null}
+              {task.reminder !== "NONE" ? (
+                <span className="reminder-badge">
+                  ◷ {REMINDER_LABELS[task.reminder]}
                 </span>
               ) : null}
             </div>

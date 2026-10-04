@@ -35,6 +35,23 @@ export class TaskController {
     }
   };
 
+  listReminders = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      response.json(this.service.listReminders(request.query.referenceDate));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  dismissReminder = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      this.service.dismissReminder(parseId(request.params.id ?? ""));
+      response.sendStatus(204);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = (request: Request, response: Response, next: NextFunction): void => {
     try {
       response.status(201).json({ item: this.service.create(request.body) });

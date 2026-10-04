@@ -77,6 +77,7 @@ with sync_playwright() as playwright:
     title_input.fill("งานทดสอบผ่านเบราว์เซอร์")
     dialog.get_by_label("รายละเอียด").fill("ตรวจเส้นทางจากหน้าเว็บถึง SQLite")
     dialog.get_by_label("วันครบกำหนด").fill(TODAY)
+    dialog.get_by_label("เตือนฉัน").select_option("SEVEN_DAYS_BEFORE")
     dialog.get_by_label("ทำซ้ำ").select_option("WEEKLY")
     dialog.get_by_label("ความสำคัญ").select_option("HIGH")
     dialog.get_by_label("แท็ก").fill("งาน, ด่วน")
@@ -92,8 +93,32 @@ with sync_playwright() as playwright:
     expect(created_row.get_by_text("ครบกำหนดวันนี้", exact=True)).to_be_visible()
     expect(created_row.get_by_text("สำคัญสูง", exact=True)).to_be_visible()
     expect(created_row.get_by_label("ทำซ้ำ ทุกสัปดาห์")).to_be_visible()
+    expect(created_row.get_by_text("เตือนล่วงหน้า 7 วัน", exact=False)).to_be_visible()
     expect(created_row.get_by_text("งาน", exact=True)).to_be_visible()
     expect(created_row.get_by_text("ด่วน", exact=True)).to_be_visible()
+
+    reminder_center = page.locator(".reminder-center")
+    expect(reminder_center.get_by_role("heading", name="เตือนกำหนดส่ง")).to_be_visible()
+    expect(reminder_center.get_by_text("งานทดสอบผ่านเบราว์เซอร์", exact=True)).to_be_visible()
+    expect(reminder_center.get_by_text("ครบกำหนดวันนี้", exact=False)).to_be_visible()
+    page.screenshot(path=str(ARTIFACTS / "reminders-desktop.png"), full_page=True)
+    reminder_center.get_by_role("button", name="เปิดงาน").click()
+    reminder_dialog = page.locator("dialog[open]")
+    expect(reminder_dialog.get_by_label("เตือนฉัน")).to_have_value(
+        "SEVEN_DAYS_BEFORE"
+    )
+    reminder_dialog.get_by_role("button", name="ปิดหน้าต่าง").click()
+    with page.expect_response(
+        lambda response: "/api/reminders/" in response.url
+        and response.request.method == "DELETE"
+    ) as dismiss_reminder_response:
+        reminder_center.get_by_role("button", name="ซ่อนเตือนนี้").click()
+    assert dismiss_reminder_response.value.status == 204
+    expect(page.locator(".toast", has_text="ซ่อนการเตือนรอบนี้แล้ว")).to_be_visible()
+    expect(page.locator(".reminder-center")).to_have_count(0)
+    page.reload()
+    page.wait_for_load_state("networkidle")
+    expect(page.locator(".reminder-center")).to_have_count(0)
 
     checklist = created_row.locator(".checklist")
     checklist.locator("summary").click()
@@ -173,6 +198,7 @@ with sync_playwright() as playwright:
     assert update_payload["nextItem"]["dueDate"] == NEXT_WEEK
     assert update_payload["nextItem"]["status"] == "TODO"
     assert update_payload["nextItem"]["recurrence"] == "WEEKLY"
+    assert update_payload["nextItem"]["reminder"] == "SEVEN_DAYS_BEFORE"
     next_subtasks = update_payload["nextItem"]["subtasks"]
     assert len(next_subtasks) == 1
     assert next_subtasks[0]["title"] == "รวบรวมข้อมูล"
@@ -196,10 +222,16 @@ with sync_playwright() as playwright:
         "datetime", NEXT_WEEK
     )
     expect(next_recurring_row.get_by_label("ทำซ้ำ ทุกสัปดาห์")).to_be_visible()
+    expect(next_recurring_row.get_by_text("เตือนล่วงหน้า 7 วัน", exact=False)).to_be_visible()
     expect(next_recurring_row.get_by_text("เสร็จแล้ว 0/1", exact=True)).to_be_visible()
+    expect(
+        page.locator(".reminder-center").get_by_text(
+            "งานทดสอบผ่านเบราว์เซอร์ แก้ไข", exact=True
+        )
+    ).to_be_visible()
 
     page.get_by_label("สถานะ").select_option("DONE")
-    page.get_by_label("กำหนดส่ง").select_option("TODAY")
+    page.get_by_label("กำหนดส่ง", exact=True).select_option("TODAY")
     page.get_by_label("ความสำคัญ").select_option("LOW")
     page.locator("#tag-filter").fill("ส่วนตัว")
     page.get_by_label("เรียงตาม").select_option("PRIORITY_DESC")
@@ -286,7 +318,7 @@ with sync_playwright() as playwright:
         final_checklist.get_by_role("button", name="เพิ่ม", exact=True).click()
     assert mobile_subtask_response.value.status == 201
     expect(final_checklist.get_by_text("เสร็จแล้ว 0/1", exact=True)).to_be_visible()
-    page.get_by_label("กำหนดส่ง").select_option("OVERDUE")
+    page.get_by_label("กำหนดส่ง", exact=True).select_option("OVERDUE")
     page.locator("#tag-filter").fill("ทดสอบ")
     page.get_by_role("button", name="ค้นหา", exact=True).click()
     page.get_by_label("เรียงตาม").select_option("DUE_ASC")
@@ -308,6 +340,11 @@ with sync_playwright() as playwright:
     mobile_page.goto(BASE_URL)
     mobile_page.wait_for_load_state("networkidle")
     expect(mobile_page.get_by_role("heading", name="งานของฉัน")).to_be_visible()
+    expect(
+        mobile_page.locator(".reminder-center").get_by_text(
+            "งานทดสอบผ่านเบราว์เซอร์ แก้ไข", exact=True
+        )
+    ).to_be_visible()
     mobile_row = mobile_page.locator(".task-row", has_text=preserved_title)
     expect(mobile_row).to_be_visible()
     expect(mobile_row.get_by_text("เกินกำหนด", exact=False)).to_be_visible()
@@ -337,4 +374,4 @@ assert not unexpected_console_errors, (
     f"Unexpected browser console errors: {unexpected_console_errors}"
 )
 assert not page_errors, f"Uncaught page errors: {page_errors}"
-print("Browser smoke test passed: recurring next task, reset subtasks, priority, tags, sorting, due dates, filters, error recovery, 375px, 1440px")
+print("Browser smoke test passed: due reminders open/dismiss/persist, recurring next task, reset subtasks, priority, tags, filters, error recovery, 375px, 1440px")

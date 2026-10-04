@@ -5,6 +5,7 @@ import type {
   Task,
   TaskPriority,
   TaskRecurrence,
+  TaskReminder,
   TaskSort,
   TaskStatus,
 } from "../domain/task.js";
@@ -17,6 +18,7 @@ interface TaskRow {
   due_date: string | null;
   priority: TaskPriority;
   recurrence: TaskRecurrence;
+  reminder: TaskReminder;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +37,14 @@ interface ListQuery {
   pageSize: number;
 }
 
+interface ReminderQuery {
+  onDueDate: string;
+  oneDayBefore: string;
+  threeDaysBefore: string;
+  sevenDaysBefore: string;
+  limit: number;
+}
+
 interface CreateTaskRecord {
   title: string;
   description: string;
@@ -42,6 +52,7 @@ interface CreateTaskRecord {
   dueDate: string | null;
   priority: TaskPriority;
   recurrence: TaskRecurrence;
+  reminder: TaskReminder;
   tags: string[];
   now: string;
 }
@@ -53,7 +64,9 @@ interface UpdateTaskRecord {
   dueDate: string | null;
   priority: TaskPriority;
   recurrence: TaskRecurrence;
+  reminder: TaskReminder;
   tags: string[];
+  resetReminderDismissal: boolean;
   nextDueDate: string | null;
   now: string;
 }
@@ -109,6 +122,7 @@ function toTask(row: TaskRow, tags: string[], subtasks: Subtask[]): Task {
     dueDate: row.due_date,
     priority: row.priority,
     recurrence: row.recurrence,
+    reminder: row.reminder,
     tags,
     subtasks,
     createdAt: row.created_at,
@@ -228,8 +242,9 @@ export class TaskRepository {
       const result = this.database
         .prepare(
           `INSERT INTO tasks (
-             title, description, status, due_date, priority, recurrence, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             title, description, status, due_date, priority, recurrence, reminder,
+             created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.title,
@@ -238,6 +253,7 @@ export class TaskRepository {
           input.dueDate,
           input.priority,
           input.recurrence,
+          input.reminder,
           input.now,
           input.now,
         );
@@ -250,7 +266,8 @@ export class TaskRepository {
   findById(id: number): Task | null {
     const row = this.database
       .prepare(
-        `SELECT id, title, description, status, due_date, priority, recurrence, created_at, updated_at
+        `SELECT id, title, description, status, due_date, priority, recurrence, reminder,
+           created_at, updated_at
          FROM tasks
          WHERE id = ?`,
       )
@@ -313,7 +330,8 @@ export class TaskRepository {
     const offset = (query.page - 1) * query.pageSize;
     const rows = this.database
       .prepare(
-        `SELECT id, title, description, status, due_date, priority, recurrence, created_at, updated_at
+        `SELECT id, title, description, status, due_date, priority, recurrence, reminder,
+           created_at, updated_at
          FROM tasks
          ${where}
          ORDER BY ${getOrderBy(query.sort)}
@@ -331,12 +349,64 @@ export class TaskRepository {
     };
   }
 
+  listReminders(query: ReminderQuery): Task[] {
+    const rows = this.database
+      .prepare(
+        `SELECT id, title, description, status, due_date, priority, recurrence, reminder,
+           created_at, updated_at
+         FROM tasks
+         WHERE status != 'DONE'
+           AND reminder != 'NONE'
+           AND due_date IS NOT NULL
+           AND (reminder_dismissed_for IS NULL OR reminder_dismissed_for != due_date)
+           AND (
+             (reminder = 'ON_DUE_DATE' AND due_date <= ?) OR
+             (reminder = 'ONE_DAY_BEFORE' AND due_date <= ?) OR
+             (reminder = 'THREE_DAYS_BEFORE' AND due_date <= ?) OR
+             (reminder = 'SEVEN_DAYS_BEFORE' AND due_date <= ?)
+           )
+         ORDER BY due_date ASC,
+           CASE priority WHEN 'HIGH' THEN 3 WHEN 'NORMAL' THEN 2 ELSE 1 END DESC,
+           created_at DESC, id DESC
+         LIMIT ?`,
+      )
+      .all(
+        query.onDueDate,
+        query.oneDayBefore,
+        query.threeDaysBefore,
+        query.sevenDaysBefore,
+        query.limit,
+      ) as unknown as TaskRow[];
+    const tagsByTask = this.loadTags(rows.map((row) => row.id));
+    const subtasksByTask = this.loadSubtasks(rows.map((row) => row.id));
+    return rows.map((row) =>
+      toTask(row, tagsByTask.get(row.id) ?? [], subtasksByTask.get(row.id) ?? []),
+    );
+  }
+
+  dismissReminder(id: number): boolean {
+    const result = this.database
+      .prepare(
+        `UPDATE tasks
+         SET reminder_dismissed_for = due_date
+         WHERE id = ?
+           AND status != 'DONE'
+           AND reminder != 'NONE'
+           AND due_date IS NOT NULL`,
+      )
+      .run(id);
+    return result.changes > 0;
+  }
+
   update(id: number, input: UpdateTaskRecord): UpdateTaskResult | null {
     return this.withSavepoint("update_task", () => {
       const result = this.database
         .prepare(
           `UPDATE tasks
-           SET title = ?, description = ?, status = ?, due_date = ?, priority = ?, recurrence = ?, updated_at = ?
+           SET title = ?, description = ?, status = ?, due_date = ?, priority = ?, recurrence = ?,
+             reminder = ?,
+             reminder_dismissed_for = CASE WHEN ? = 1 THEN NULL ELSE reminder_dismissed_for END,
+             updated_at = ?
            WHERE id = ?`,
         )
         .run(
@@ -346,6 +416,8 @@ export class TaskRepository {
           input.dueDate,
           input.priority,
           input.recurrence,
+          input.reminder,
+          input.resetReminderDismissal ? 1 : 0,
           input.now,
           id,
         );
@@ -358,9 +430,9 @@ export class TaskRepository {
         const nextResult = this.database
           .prepare(
             `INSERT INTO tasks (
-               title, description, status, due_date, priority, recurrence,
+               title, description, status, due_date, priority, recurrence, reminder,
                recurrence_parent_id, created_at, updated_at
-             ) VALUES (?, ?, 'TODO', ?, ?, ?, ?, ?, ?)
+             ) VALUES (?, ?, 'TODO', ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(recurrence_parent_id)
                WHERE recurrence_parent_id IS NOT NULL
              DO NOTHING`,
@@ -371,6 +443,7 @@ export class TaskRepository {
             input.nextDueDate,
             input.priority,
             input.recurrence,
+            input.reminder,
             id,
             input.now,
             input.now,

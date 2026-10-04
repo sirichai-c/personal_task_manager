@@ -102,6 +102,30 @@ const migrations = [
         WHERE recurrence_parent_id IS NOT NULL;
     `,
   },
+  {
+    version: 6,
+    sql: `
+      ALTER TABLE tasks ADD COLUMN reminder TEXT NOT NULL DEFAULT 'NONE'
+        CHECK (
+          reminder IN (
+            'NONE', 'ON_DUE_DATE', 'ONE_DAY_BEFORE',
+            'THREE_DAYS_BEFORE', 'SEVEN_DAYS_BEFORE'
+          ) AND (reminder = 'NONE' OR due_date IS NOT NULL)
+        );
+
+      ALTER TABLE tasks ADD COLUMN reminder_dismissed_for TEXT
+        CHECK (
+          reminder_dismissed_for IS NULL OR (
+            length(reminder_dismissed_for) = 10 AND
+            reminder_dismissed_for GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+          )
+        );
+
+      CREATE INDEX idx_tasks_active_reminders
+        ON tasks(due_date, priority, id)
+        WHERE status != 'DONE' AND reminder != 'NONE';
+    `,
+  },
 ] as const;
 
 export function runMigrations(database: DatabaseSync): void {

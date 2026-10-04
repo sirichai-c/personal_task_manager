@@ -5,12 +5,15 @@ import {
   createTask,
   deleteSubtask,
   deleteTask,
+  dismissReminder,
+  getReminders,
   getTasks,
   updateSubtask,
   updateTask,
 } from "./api/tasks";
 import { DeleteTaskDialog } from "./components/DeleteTaskDialog";
 import { Pagination } from "./components/Pagination";
+import { ReminderCenter } from "./components/ReminderCenter";
 import { TaskFormDialog } from "./components/TaskFormDialog";
 import { TaskList } from "./components/TaskList";
 import type {
@@ -52,6 +55,8 @@ function getLocalDateValue(): string {
 
 export default function App() {
   const [data, setData] = useState<TaskListResponse | null>(null);
+  const [reminders, setReminders] = useState<Task[]>([]);
+  const [reminderError, setReminderError] = useState("");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [searchDraft, setSearchDraft] = useState("");
   const [tagDraft, setTagDraft] = useState("");
@@ -85,6 +90,24 @@ export default function App() {
       });
     return () => controller.abort();
   }, [filters, page, requestKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getReminders(getLocalDateValue(), controller.signal)
+      .then((items) => {
+        setReminders(items);
+        setReminderError("");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setReminderError(
+          error instanceof ApiError ? error.message : "โหลดการแจ้งเตือนไม่สำเร็จ",
+        );
+      });
+    return () => controller.abort();
+  }, [refreshKey]);
 
   useEffect(() => {
     if (!successMessage) {
@@ -146,6 +169,7 @@ export default function App() {
       return;
     }
     await deleteTask(deletingTask.id);
+    setReminders((current) => current.filter((task) => task.id !== deletingTask.id));
     setDeletingTask(null);
     if (data && data.items.length === 1 && page > 1) {
       setPage((current) => current - 1);
@@ -153,6 +177,12 @@ export default function App() {
       refresh();
     }
     announceSuccess("ลบงานแล้ว");
+  }
+
+  async function handleDismissReminder(id: number) {
+    await dismissReminder(id);
+    setReminders((current) => current.filter((task) => task.id !== id));
+    announceSuccess("ซ่อนการเตือนรอบนี้แล้ว");
   }
 
   async function handleCreateSubtask(taskId: number, title: string) {
@@ -372,6 +402,15 @@ export default function App() {
             </button>
           ) : null}
         </form>
+
+        <ReminderCenter
+          tasks={reminders}
+          error={reminderError}
+          referenceDate={getLocalDateValue()}
+          onRetry={refresh}
+          onOpen={setEditingTask}
+          onDismiss={handleDismissReminder}
+        />
 
         <div className="list-heading">
           <div>

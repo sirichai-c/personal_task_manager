@@ -81,6 +81,12 @@ async function createTask(
   priority?: "LOW" | "NORMAL" | "HIGH",
   tags?: string[],
   recurrence?: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY",
+  reminder?:
+    | "NONE"
+    | "ON_DUE_DATE"
+    | "ONE_DAY_BEFORE"
+    | "THREE_DAYS_BEFORE"
+    | "SEVEN_DAYS_BEFORE",
 ) {
   return request<{
     item: {
@@ -91,6 +97,7 @@ async function createTask(
       dueDate: string | null;
       priority: string;
       recurrence: string;
+      reminder: string;
       tags: string[];
       subtasks: Array<{
         id: number;
@@ -113,6 +120,7 @@ async function createTask(
         ...(priority !== undefined ? { priority } : {}),
         ...(tags !== undefined ? { tags } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
+        ...(reminder !== undefined ? { reminder } : {}),
       }),
     },
   );
@@ -159,6 +167,7 @@ describe("tasks API", () => {
       dueDate: null,
       priority: "NORMAL",
       recurrence: "NONE",
+      reminder: "NONE",
       tags: [],
       subtasks: [],
     });
@@ -202,6 +211,125 @@ describe("tasks API", () => {
     expect(withoutDueDate.body.error.fields.dueDate).toBeTruthy();
   });
 
+  it("creates a due-date reminder only when the task has a due date", async () => {
+    const server = await startServer();
+    const reminded = await request<{
+      item: { reminder: string; dueDate: string };
+    }>(server, "/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "เตรียมเอกสารล่วงหน้า",
+        dueDate: "2026-10-07",
+        reminder: "THREE_DAYS_BEFORE",
+      }),
+    });
+    const withoutDueDate = await request<{
+      error: { fields: Record<string, string> };
+    }>(server, "/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "งานที่เตือนไม่ได้",
+        reminder: "ONE_DAY_BEFORE",
+      }),
+    });
+
+    expect(reminded.status).toBe(201);
+    expect(reminded.body.item).toMatchObject({
+      reminder: "THREE_DAYS_BEFORE",
+      dueDate: "2026-10-07",
+    });
+    expect(withoutDueDate.status).toBe(400);
+    expect(withoutDueDate.body.error.fields.dueDate).toBeTruthy();
+  });
+
+  it("lists active reminders at their configured lead time", async () => {
+    const server = await startServer();
+    const reminderTasks = [
+      ["เกินกำหนด", "2026-10-01", "ON_DUE_DATE"],
+      ["ครบวันนี้", "2026-10-04", "ON_DUE_DATE"],
+      ["เตือนพรุ่งนี้", "2026-10-05", "ONE_DAY_BEFORE"],
+      ["เตือนอีกสามวัน", "2026-10-07", "THREE_DAYS_BEFORE"],
+      ["เตือนอีกเจ็ดวัน", "2026-10-11", "SEVEN_DAYS_BEFORE"],
+      ["ยังไม่ถึงเวลา", "2026-10-06", "ONE_DAY_BEFORE"],
+    ] as const;
+    for (const [title, dueDate, reminder] of reminderTasks) {
+      await createTask(
+        server,
+        title,
+        "",
+        dueDate,
+        "NORMAL",
+        [],
+        "NONE",
+        reminder,
+      );
+    }
+    const done = await createTask(
+      server,
+      "งานเสร็จแล้ว",
+      "",
+      "2026-10-04",
+      "NORMAL",
+      [],
+      "NONE",
+      "ON_DUE_DATE",
+    );
+    await request(server, `/api/tasks/${done.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "DONE" }),
+    });
+
+    const response = await request<{ items: Array<{ title: string }> }>(
+      server,
+      "/api/reminders?referenceDate=2026-10-04",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((item) => item.title)).toEqual([
+      "เกินกำหนด",
+      "ครบวันนี้",
+      "เตือนพรุ่งนี้",
+      "เตือนอีกสามวัน",
+      "เตือนอีกเจ็ดวัน",
+    ]);
+  });
+
+  it("dismisses a reminder for its current due date and reactivates it after rescheduling", async () => {
+    const server = await startServer();
+    const created = await createTask(
+      server,
+      "ส่งเอกสารลูกค้า",
+      "",
+      "2026-10-04",
+      "HIGH",
+      ["ลูกค้า"],
+      "NONE",
+      "ON_DUE_DATE",
+    );
+    const reminderPath = "/api/reminders?referenceDate=2026-10-04";
+    const before = await request<{ items: Array<{ id: number }> }>(server, reminderPath);
+
+    const dismissed = await request(server, `/api/reminders/${created.body.item.id}`, {
+      method: "DELETE",
+    });
+    const after = await request<{ items: Array<{ id: number }> }>(server, reminderPath);
+    await request(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ dueDate: "2026-10-05" }),
+    });
+    const afterReschedule = await request<{ items: Array<{ id: number }> }>(
+      server,
+      "/api/reminders?referenceDate=2026-10-05",
+    );
+
+    expect(before.body.items.map((item) => item.id)).toContain(created.body.item.id);
+    expect(dismissed.status).toBe(204);
+    expect(after.body.items.map((item) => item.id)).not.toContain(created.body.item.id);
+    expect(afterReschedule.body.items.map((item) => item.id)).toContain(
+      created.body.item.id,
+    );
+  });
+
   it("creates one next occurrence with copied tags and reset subtasks when completed", async () => {
     let currentTime = "2026-10-04T08:00:00.000Z";
     const server = await startServer(
@@ -216,6 +344,7 @@ describe("tasks API", () => {
         title: "ประชุมทีม",
         dueDate: "2026-10-05",
         recurrence: "WEEKLY",
+        reminder: "ONE_DAY_BEFORE",
         tags: ["ทีม", "ประจำ"],
       }),
     });
@@ -225,6 +354,9 @@ describe("tasks API", () => {
       `/api/tasks/${created.body.item.id}/subtasks/${subtask.body.item.id}`,
       { method: "PATCH", body: JSON.stringify({ completed: true }) },
     );
+    await request(server, `/api/reminders/${created.body.item.id}`, {
+      method: "DELETE",
+    });
 
     currentTime = "2026-10-05T12:00:00.000Z";
     const completed = await request<{
@@ -234,6 +366,7 @@ describe("tasks API", () => {
         status: string;
         dueDate: string;
         recurrence: string;
+        reminder: string;
         tags: string[];
         subtasks: Array<{ title: string; completed: boolean }>;
       };
@@ -248,9 +381,17 @@ describe("tasks API", () => {
       status: "TODO",
       dueDate: "2026-10-12",
       recurrence: "WEEKLY",
+      reminder: "ONE_DAY_BEFORE",
       tags: expect.arrayContaining(["ทีม", "ประจำ"]),
       subtasks: [{ title: "เตรียมวาระ", completed: false }],
     });
+    const nextReminders = await request<{ items: Array<{ id: number }> }>(
+      server,
+      "/api/reminders?referenceDate=2026-10-11",
+    );
+    expect(nextReminders.body.items.map((item) => item.id)).toContain(
+      completed.body.nextItem?.id,
+    );
 
     const repeatedPatch = await request<{ nextItem?: unknown }>(
       server,
@@ -352,6 +493,55 @@ describe("tasks API", () => {
     expect(invalidUpdate.body.error.fields.dueDate).toBeTruthy();
     expect(disabled.status).toBe(200);
     expect(disabled.body.item).toMatchObject({ recurrence: "NONE", dueDate: null });
+  });
+
+  it("validates reminders when creating and editing tasks", async () => {
+    const server = await startServer();
+    const invalidCreate = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      "/api/tasks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "งานเตือนผิดรูปแบบ",
+          dueDate: "2026-10-05",
+          reminder: "NEXT_MONTH",
+        }),
+      },
+    );
+    const created = await createTask(
+      server,
+      "งานเตือนวันครบกำหนด",
+      "",
+      "2026-10-05",
+      "NORMAL",
+      [],
+      "NONE",
+      "ON_DUE_DATE",
+    );
+    const invalidUpdate = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      `/api/tasks/${created.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ dueDate: null }) },
+    );
+    const disabled = await request<{
+      item: { reminder: string; dueDate: string | null };
+    }>(server, `/api/tasks/${created.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ reminder: "NONE", dueDate: null }),
+    });
+    const invalidReferenceDate = await request<{
+      error: { fields: Record<string, string> };
+    }>(server, "/api/reminders?referenceDate=2026-02-30");
+
+    expect(invalidCreate.status).toBe(400);
+    expect(invalidCreate.body.error.fields.reminder).toBeTruthy();
+    expect(invalidUpdate.status).toBe(400);
+    expect(invalidUpdate.body.error.fields.dueDate).toBeTruthy();
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.item).toMatchObject({ reminder: "NONE", dueDate: null });
+    expect(invalidReferenceDate.status).toBe(400);
+    expect(invalidReferenceDate.body.error.fields.referenceDate).toBeTruthy();
   });
 
   it.each([
@@ -779,9 +969,15 @@ describe("tasks API", () => {
     const deletion = await request<{ error: Record<string, unknown> }>(server, "/api/tasks/999999", {
       method: "DELETE",
     });
+    const reminderDismissal = await request<{ error: Record<string, unknown> }>(
+      server,
+      "/api/reminders/999999",
+      { method: "DELETE" },
+    );
 
     expect(update.status).toBe(404);
     expect(deletion.status).toBe(404);
+    expect(reminderDismissal.status).toBe(404);
     expect(JSON.stringify(update.body)).not.toContain("stack");
   });
 
@@ -817,9 +1013,11 @@ describe("tasks API", () => {
       firstServer,
       "งานที่ต้องอยู่ต่อ",
       "",
-      null,
+      "2026-10-05",
       "HIGH",
       ["ถาวร"],
+      "NONE",
+      "THREE_DAYS_BEFORE",
     );
     await createSubtask(firstServer, created.body.item.id, "ขั้นตอนถาวร");
     await stopServer(firstServer);
@@ -831,6 +1029,7 @@ describe("tasks API", () => {
         title: string;
         priority: string;
         recurrence: string;
+        reminder: string;
         tags: string[];
         subtasks: Array<{ title: string }>;
       }>;
@@ -845,6 +1044,7 @@ describe("tasks API", () => {
         id: created.body.item.id,
         title: "งานที่ต้องอยู่ต่อ",
         priority: "HIGH",
+        reminder: "THREE_DAYS_BEFORE",
         tags: ["ถาวร"],
         subtasks: [expect.objectContaining({ title: "ขั้นตอนถาวร" })],
       }),
@@ -901,10 +1101,11 @@ describe("tasks API", () => {
         dueDate: null,
         priority: "NORMAL",
         recurrence: "NONE",
+        reminder: "NONE",
         tags: [],
         subtasks: [],
       }),
     );
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });

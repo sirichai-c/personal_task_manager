@@ -12,6 +12,7 @@ import type {
   TaskInput,
   TaskPriority,
   TaskRecurrence,
+  TaskReminder,
   TaskStatus,
 } from "../types";
 
@@ -28,6 +29,7 @@ const EMPTY_FORM: TaskInput = {
   dueDate: "",
   priority: "NORMAL",
   recurrence: "NONE",
+  reminder: "NONE",
   tags: [],
 };
 
@@ -40,6 +42,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
   const statusId = useId();
   const priorityId = useId();
   const recurrenceId = useId();
+  const reminderId = useId();
   const tagsId = useId();
   const [form, setForm] = useState<TaskInput>(() =>
     task
@@ -50,6 +53,7 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
           dueDate: task.dueDate ?? "",
           priority: task.priority,
           recurrence: task.recurrence,
+          reminder: task.reminder,
           tags: task.tags,
         }
       : EMPTY_FORM,
@@ -192,7 +196,11 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
         <div className="field">
           <div className="field-label-row">
             <label htmlFor={dueDateId}>วันครบกำหนด</label>
-            <span>{form.recurrence === "NONE" ? "ไม่บังคับ" : "ต้องกำหนด"}</span>
+            <span>
+              {form.recurrence === "NONE" && form.reminder === "NONE"
+                ? "ไม่บังคับ"
+                : "ต้องกำหนด"}
+            </span>
           </div>
           <input
             id={dueDateId}
@@ -203,12 +211,51 @@ export function TaskFormDialog({ task, onClose, onSave }: TaskFormDialogProps) {
               setForm((current) => ({ ...current, dueDate: event.target.value }))
             }
             aria-invalid={Boolean(fieldErrors.dueDate)}
-            aria-required={form.recurrence !== "NONE"}
+            aria-required={form.recurrence !== "NONE" || form.reminder !== "NONE"}
             aria-describedby={fieldErrors.dueDate ? `${dueDateId}-error` : undefined}
           />
           {fieldErrors.dueDate ? (
             <span id={`${dueDateId}-error`} className="field-error">
               {fieldErrors.dueDate}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <label htmlFor={reminderId}>เตือนฉัน</label>
+          <select
+            id={reminderId}
+            name="reminder"
+            value={form.reminder}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                reminder: event.target.value as TaskReminder,
+              }))
+            }
+            aria-invalid={Boolean(fieldErrors.reminder)}
+            aria-describedby={
+              fieldErrors.reminder
+                ? `${reminderId}-error`
+                : form.reminder !== "NONE"
+                  ? `${reminderId}-hint`
+                  : undefined
+            }
+          >
+            <option value="NONE">ไม่เตือน</option>
+            <option value="ON_DUE_DATE">วันครบกำหนด</option>
+            <option value="ONE_DAY_BEFORE">ล่วงหน้า 1 วัน</option>
+            <option value="THREE_DAYS_BEFORE">ล่วงหน้า 3 วัน</option>
+            <option value="SEVEN_DAYS_BEFORE">ล่วงหน้า 7 วัน</option>
+          </select>
+          {form.reminder !== "NONE" ? (
+            <span id={`${reminderId}-hint`} className="field-hint">
+              การเตือนจะแสดงในแอปเมื่อถึงช่วงที่เลือก
+            </span>
+          ) : null}
+          {fieldErrors.reminder ? (
+            <span id={`${reminderId}-error`} className="field-error">
+              {fieldErrors.reminder}
             </span>
           ) : null}
         </div>

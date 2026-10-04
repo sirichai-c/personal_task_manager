@@ -1,9 +1,11 @@
 import {
   DUE_DATE_FILTERS,
   MAX_SUBTASKS_PER_TASK,
+  MAX_ACTIVE_REMINDERS,
   PAGE_SIZE,
   TASK_PRIORITIES,
   TASK_RECURRENCES,
+  TASK_REMINDERS,
   TASK_SORTS,
   TASK_STATUSES,
   type DueDateFilter,
@@ -12,6 +14,7 @@ import {
   type TaskList,
   type TaskPriority,
   type TaskRecurrence,
+  type TaskReminder,
   type TaskSort,
   type TaskStatus,
 } from "../domain/task.js";
@@ -122,6 +125,23 @@ function validateRecurrenceDueDate(
   if (recurrence !== "NONE" && !dueDate) {
     throw new ValidationError("งานที่ทำซ้ำต้องมีวันครบกำหนด", {
       dueDate: "กรุณากำหนดวันสำหรับงานที่ทำซ้ำ",
+    });
+  }
+}
+
+function validateReminder(value: unknown): TaskReminder {
+  if (typeof value !== "string" || !TASK_REMINDERS.includes(value as TaskReminder)) {
+    throw new ValidationError("การแจ้งเตือนไม่ถูกต้อง", {
+      reminder: "การแจ้งเตือนไม่ถูกต้อง",
+    });
+  }
+  return value as TaskReminder;
+}
+
+function validateReminderDueDate(reminder: TaskReminder, dueDate: string | null): void {
+  if (reminder !== "NONE" && !dueDate) {
+    throw new ValidationError("งานที่ตั้งเตือนต้องมีวันครบกำหนด", {
+      dueDate: "กรุณากำหนดวันสำหรับงานที่ตั้งเตือน",
     });
   }
 }
@@ -256,7 +276,10 @@ export class TaskService {
     const dueDate = validateDueDate(record.dueDate);
     const recurrence =
       record.recurrence === undefined ? "NONE" : validateRecurrence(record.recurrence);
+    const reminder =
+      record.reminder === undefined ? "NONE" : validateReminder(record.reminder);
     validateRecurrenceDueDate(recurrence, dueDate);
+    validateReminderDueDate(reminder, dueDate);
     return this.repository.create({
       title: validateTitle(record.title),
       description: validateDescription(record.description),
@@ -266,6 +289,7 @@ export class TaskService {
         record.priority === undefined ? "NORMAL" : validatePriority(record.priority),
       tags: validateTags(record.tags),
       recurrence,
+      reminder,
       now: this.now().toISOString(),
     });
   }
@@ -330,6 +354,28 @@ export class TaskService {
     };
   }
 
+  listReminders(referenceDateInput?: unknown): { items: Task[] } {
+    const referenceDate =
+      referenceDateInput === undefined
+        ? this.now().toISOString().slice(0, 10)
+        : validateDate(referenceDateInput, "referenceDate");
+    return {
+      items: this.repository.listReminders({
+        onDueDate: referenceDate,
+        oneDayBefore: addDays(referenceDate, 1),
+        threeDaysBefore: addDays(referenceDate, 3),
+        sevenDaysBefore: addDays(referenceDate, 7),
+        limit: MAX_ACTIVE_REMINDERS,
+      }),
+    };
+  }
+
+  dismissReminder(id: number): void {
+    if (!this.repository.dismissReminder(id)) {
+      throw new NotFoundError();
+    }
+  }
+
   update(id: number, input: unknown): { task: Task; nextTask: Task | null } {
     const record = asRecord(input);
     const current = this.repository.findById(id);
@@ -345,6 +391,7 @@ export class TaskService {
       "priority",
       "tags",
       "recurrence",
+      "reminder",
     ].some((field) => Object.hasOwn(record, field));
     if (!hasEditableField) {
       throw new ValidationError("กรุณาระบุข้อมูลที่ต้องการแก้ไข");
@@ -356,7 +403,11 @@ export class TaskService {
     const recurrence = Object.hasOwn(record, "recurrence")
       ? validateRecurrence(record.recurrence)
       : current.recurrence;
+    const reminder = Object.hasOwn(record, "reminder")
+      ? validateReminder(record.reminder)
+      : current.reminder;
     validateRecurrenceDueDate(recurrence, dueDate);
+    validateReminderDueDate(reminder, dueDate);
     const status = Object.hasOwn(record, "status")
       ? validateStatus(record.status)
       : current.status;
@@ -375,6 +426,10 @@ export class TaskService {
         : current.priority,
       tags: Object.hasOwn(record, "tags") ? validateTags(record.tags) : current.tags,
       recurrence,
+      reminder,
+      resetReminderDismissal:
+        (Object.hasOwn(record, "dueDate") && dueDate !== current.dueDate) ||
+        (Object.hasOwn(record, "reminder") && reminder !== current.reminder),
       nextDueDate:
         shouldCreateNext && dueDate
           ? getNextDueDate(dueDate, recurrence as Exclude<TaskRecurrence, "NONE">)

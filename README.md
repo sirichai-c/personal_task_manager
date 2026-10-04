@@ -1,6 +1,6 @@
 # เว็บจัดการงานส่วนตัว
 
-เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง จัดลำดับความสำคัญ ติดแท็ก กำหนดวันครบกำหนด ตั้งงานซ้ำรายวัน/สัปดาห์/เดือน เรียงรายการ แบ่งงานเป็น checklist แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
+เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง จัดลำดับความสำคัญ ติดแท็ก กำหนดวันครบกำหนด ตั้งการเตือนในแอป ตั้งงานซ้ำรายวัน/สัปดาห์/เดือน เรียงรายการ แบ่งงานเป็น checklist แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
 
 ## สิ่งที่ต้องมี
 
@@ -63,7 +63,7 @@ npm run check
 
 Integration tests สร้าง SQLite ใน temporary directory ของระบบและลบทิ้งหลังทดสอบ จึงไม่แตะฐานข้อมูลใช้งานจริง Performance script ทำเช่นเดียวกันและสร้างข้อมูล 5,000 รายการเฉพาะในฐานข้อมูลชั่วคราว
 
-Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบงานซ้ำและการสร้างรอบถัดไป, checklist (เพิ่ม/ติ๊ก/แก้ไข/ยืนยันลบ/ความคืบหน้า), priority, tags, sorting, วันครบกำหนด, CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
+Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบการเตือน (แสดง/เปิดงาน/ซ่อน/คงสถานะหลัง reload), งานซ้ำและการสร้างรอบถัดไป, checklist (เพิ่ม/ติ๊ก/แก้ไข/ยืนยันลบ/ความคืบหน้า), priority, tags, sorting, วันครบกำหนด, CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
 
 ```powershell
 python -m pip install --target .browser-tools playwright
@@ -76,9 +76,11 @@ python scripts/run-browser-smoke.py
 | Method | Path | การทำงาน |
 | --- | --- | --- |
 | `GET` | `/api/tasks?search=&status=&dueDate=&priority=&tag=&sort=&referenceDate=&page=1` | ค้นหา กรอง เรียง และแบ่งหน้าละ 20 รายการ |
-| `POST` | `/api/tasks` | เพิ่มงานพร้อม `dueDate`, `priority`, `tags`, `recurrence`; สถานะเริ่มต้น `TODO` |
-| `PATCH` | `/api/tasks/:id` | แก้ชื่อ รายละเอียด สถานะ วันครบกำหนด ความสำคัญ แท็ก หรือรอบทำซ้ำ |
+| `POST` | `/api/tasks` | เพิ่มงานพร้อม `dueDate`, `priority`, `tags`, `recurrence`, `reminder`; สถานะเริ่มต้น `TODO` |
+| `PATCH` | `/api/tasks/:id` | แก้ชื่อ รายละเอียด สถานะ วันครบกำหนด ความสำคัญ แท็ก รอบทำซ้ำ หรือการเตือน |
 | `DELETE` | `/api/tasks/:id` | ลบงาน |
+| `GET` | `/api/reminders?referenceDate=YYYY-MM-DD` | อ่านงานที่ถึงช่วงเตือน สูงสุด 50 งาน |
+| `DELETE` | `/api/reminders/:id` | ซ่อนการเตือนของงานสำหรับวันครบกำหนดรอบปัจจุบัน |
 | `POST` | `/api/tasks/:id/subtasks` | เพิ่มรายการย่อย |
 | `PATCH` | `/api/tasks/:id/subtasks/:subtaskId` | แก้ชื่อหรือติ๊กสถานะรายการย่อย |
 | `DELETE` | `/api/tasks/:id/subtasks/:subtaskId` | ลบรายการย่อย |
@@ -87,6 +89,8 @@ python scripts/run-browser-smoke.py
 สถานะที่รองรับคือ `TODO`, `IN_PROGRESS` และ `DONE`; ความสำคัญคือ `LOW`, `NORMAL` หรือ `HIGH` (ค่าปริยาย `NORMAL`) และกำหนดได้ไม่เกิน 10 แท็ก แท็กละ 1–30 ตัวอักษรแบบไม่ซ้ำกันโดยไม่สนตัวพิมพ์ `dueDate` เป็น `null` หรือวันที่ `YYYY-MM-DD` ตัวกรองกำหนดส่งรองรับ `TODAY`, `THIS_WEEK`, `OVERDUE` และ `NO_DATE` โดย `referenceDate` ระบุวันที่ท้องถิ่นของผู้ใช้ สัปดาห์นับจันทร์–อาทิตย์ และงาน `DONE` จะไม่ถูกนับเป็นงานเกินกำหนด
 
 `recurrence` รองรับ `NONE` (ค่าปริยาย), `DAILY`, `WEEKLY` และ `MONTHLY`; งานที่ทำซ้ำต้องมี `dueDate` เมื่อสถานะเปลี่ยนจากยังไม่เสร็จเป็น `DONE` ระบบจะสร้างงาน `TODO` รอบถัดไปหนึ่งครั้งแบบ atomic โดยคัดลอกชื่อ รายละเอียด priority, tags และชื่อ checklist แต่รีเซ็ต checklist เป็นยังไม่เสร็จ การทำซ้ำรายเดือนจะคงเลขวันเดิมหรือใช้วันสุดท้ายของเดือนเมื่อเดือนไม่มีวันนั้น เช่น 31 มกราคม → 28/29 กุมภาพันธ์ การตอบ `PATCH` ครั้งที่สร้างรอบใหม่จะมี `nextItem` เพิ่มจาก `item`
+
+`reminder` รองรับ `NONE` (ค่าปริยาย), `ON_DUE_DATE`, `ONE_DAY_BEFORE`, `THREE_DAYS_BEFORE` และ `SEVEN_DAYS_BEFORE` โดยต้องมี `dueDate` ระบบแสดงเตือนในหน้าเว็บตั้งแต่ถึงช่วงที่เลือกจนงานเสร็จหรือผู้ใช้กดซ่อน การซ่อนผูกกับวันครบกำหนดรอบปัจจุบัน เมื่อเลื่อนวันงานจะกลับมาเตือนได้อีก และงานซ้ำจะคัดลอกค่าการเตือนไปรอบใหม่โดยไม่คัดลอกสถานะที่ซ่อน ฟีเจอร์นี้เป็น in-app reminder จึงไม่ส่งอีเมล push notification หรือทำงานเมื่อไม่ได้เปิดหน้าเว็บ
 
 `sort` รองรับ `CREATED_DESC` (ค่าปริยาย), `UPDATED_DESC`, `DUE_ASC` ซึ่งวางงานไม่มีวันไว้ท้ายสุด และ `PRIORITY_DESC` ซึ่งเรียง `HIGH → NORMAL → LOW`; ทุกแบบมีลำดับสำรองที่คงที่ ข้อผิดพลาดตอบในรูป `{ "error": { "code", "message", "fields"? } }` โดยไม่ส่ง stack trace กลับไป
 

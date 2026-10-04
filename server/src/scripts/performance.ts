@@ -51,14 +51,17 @@ try {
   database.exec("BEGIN IMMEDIATE");
   try {
     for (let index = 1; index <= SAMPLE_SIZE; index += 1) {
+      const hasReminder = index % 20 === 0;
+      const reminderDay = String((index % 28) + 1).padStart(2, "0");
       repository.create({
         title: index % 10 === 0 ? `รายงานประจำวัน ${index}` : `งานตัวอย่าง ${index}`,
         description: `ข้อมูลทดสอบลำดับที่ ${index}`,
         status: statuses[index % statuses.length] ?? "TODO",
-        dueDate: null,
+        dueDate: hasReminder ? `2026-10-${reminderDay}` : null,
         priority: index % 7 === 0 ? "HIGH" : index % 3 === 0 ? "LOW" : "NORMAL",
         tags: index % 10 === 0 ? ["รายงาน"] : [],
         recurrence: "NONE",
+        reminder: hasReminder ? "SEVEN_DAYS_BEFORE" : "NONE",
         now: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
       });
     }
@@ -85,6 +88,9 @@ try {
   const searchSamples = await measure(
     `${origin}/api/tasks?search=${encodeURIComponent("รายงาน")}&status=DONE&page=1`,
   );
+  const reminderSamples = await measure(
+    `${origin}/api/reminders?referenceDate=2026-10-15`,
+  );
 
   console.log(
     JSON.stringify(
@@ -98,6 +104,7 @@ try {
         },
         listPage: summarize(listSamples),
         searchAndFilter: summarize(searchSamples),
+        activeReminders: summarize(reminderSamples),
       },
       null,
       2,

@@ -104,6 +104,7 @@ export async function createTask(input: TaskInput): Promise<Task> {
       dueDate: input.dueDate || null,
       priority: input.priority,
       recurrence: input.recurrence,
+      reminder: input.reminder,
       tags: input.tags,
     }),
   });
@@ -124,6 +125,21 @@ export function updateTask(id: number, input: TaskInput): Promise<TaskUpdateResu
 
 export function deleteTask(id: number): Promise<void> {
   return request<void>(`/api/tasks/${id}`, { method: "DELETE" });
+}
+
+export async function getReminders(
+  referenceDate: string,
+  signal: AbortSignal,
+): Promise<Task[]> {
+  const response = await request<{ items: Task[] }>(
+    `/api/reminders?referenceDate=${encodeURIComponent(referenceDate)}`,
+    { signal },
+  );
+  return response.items;
+}
+
+export function dismissReminder(id: number): Promise<void> {
+  return request<void>(`/api/reminders/${id}`, { method: "DELETE" });
 }
 
 export async function createSubtask(taskId: number, title: string): Promise<Subtask> {
