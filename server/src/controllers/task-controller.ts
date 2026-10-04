@@ -2,13 +2,13 @@ import type { NextFunction, Request, Response } from "express";
 import { ValidationError } from "../errors.js";
 import { TaskService } from "../services/task-service.js";
 
-function parseId(value: string | string[]): number {
+function parseId(value: string | string[], message = "รหัสงานไม่ถูกต้อง"): number {
   if (Array.isArray(value) || !/^\d+$/.test(value)) {
-    throw new ValidationError("รหัสงานไม่ถูกต้อง");
+    throw new ValidationError(message);
   }
   const id = Number(value);
   if (!Number.isSafeInteger(id) || id < 1) {
-    throw new ValidationError("รหัสงานไม่ถูกต้อง");
+    throw new ValidationError(message);
   }
   return id;
 }
@@ -54,6 +54,42 @@ export class TaskController {
   delete = (request: Request, response: Response, next: NextFunction): void => {
     try {
       this.service.delete(parseId(request.params.id ?? ""));
+      response.sendStatus(204);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createSubtask = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      response.status(201).json({
+        item: this.service.createSubtask(parseId(request.params.id ?? ""), request.body),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateSubtask = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      response.json({
+        item: this.service.updateSubtask(
+          parseId(request.params.id ?? ""),
+          parseId(request.params.subtaskId ?? "", "รหัสรายการย่อยไม่ถูกต้อง"),
+          request.body,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteSubtask = (request: Request, response: Response, next: NextFunction): void => {
+    try {
+      this.service.deleteSubtask(
+        parseId(request.params.id ?? ""),
+        parseId(request.params.subtaskId ?? "", "รหัสรายการย่อยไม่ถูกต้อง"),
+      );
       response.sendStatus(204);
     } catch (error) {
       next(error);

@@ -2,6 +2,8 @@ import type {
   DueDateFilter,
   PriorityFilter,
   StatusFilter,
+  Subtask,
+  SubtaskUpdateInput,
   Task,
   TaskInput,
   TaskListResponse,
@@ -117,4 +119,33 @@ export async function updateTask(id: number, input: TaskInput): Promise<Task> {
 
 export function deleteTask(id: number): Promise<void> {
   return request<void>(`/api/tasks/${id}`, { method: "DELETE" });
+}
+
+export async function createSubtask(taskId: number, title: string): Promise<Subtask> {
+  const response = await request<{ item: Subtask }>(`/api/tasks/${taskId}/subtasks`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+  return response.item;
+}
+
+export async function updateSubtask(
+  taskId: number,
+  subtaskId: number,
+  input: SubtaskUpdateInput,
+): Promise<Subtask> {
+  const response = await request<{ item: Subtask }>(
+    `/api/tasks/${taskId}/subtasks/${subtaskId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+  return response.item;
+}
+
+export function deleteSubtask(taskId: number, subtaskId: number): Promise<void> {
+  return request<void>(`/api/tasks/${taskId}/subtasks/${subtaskId}`, {
+    method: "DELETE",
+  });
 }

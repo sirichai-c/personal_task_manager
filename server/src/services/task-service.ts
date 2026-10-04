@@ -1,17 +1,19 @@
 import {
   DUE_DATE_FILTERS,
+  MAX_SUBTASKS_PER_TASK,
   PAGE_SIZE,
   TASK_PRIORITIES,
   TASK_SORTS,
   TASK_STATUSES,
   type DueDateFilter,
+  type Subtask,
   type Task,
   type TaskList,
   type TaskPriority,
   type TaskSort,
   type TaskStatus,
 } from "../domain/task.js";
-import { NotFoundError, ValidationError } from "../errors.js";
+import { NotFoundError, SubtaskNotFoundError, ValidationError } from "../errors.js";
 import { TaskRepository } from "../db/task-repository.js";
 
 type InputRecord = Record<string, unknown>;
@@ -43,6 +45,30 @@ function validateTitle(value: unknown): string {
     });
   }
   return title;
+}
+
+function validateSubtaskTitle(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new ValidationError("กรุณากรอกชื่อรายการย่อย", {
+      title: "กรุณากรอกชื่อรายการย่อย",
+    });
+  }
+  const title = value.trim();
+  if (textLength(title) < 1 || textLength(title) > 120) {
+    throw new ValidationError("ชื่อรายการย่อยต้องยาว 1–120 ตัวอักษร", {
+      title: "ชื่อรายการย่อยต้องยาว 1–120 ตัวอักษร",
+    });
+  }
+  return title;
+}
+
+function validateCompleted(value: unknown): boolean {
+  if (typeof value !== "boolean") {
+    throw new ValidationError("สถานะรายการย่อยไม่ถูกต้อง", {
+      completed: "สถานะรายการย่อยไม่ถูกต้อง",
+    });
+  }
+  return value;
 }
 
 function validateDescription(value: unknown): string {
@@ -306,6 +332,53 @@ export class TaskService {
   delete(id: number): void {
     if (!this.repository.delete(id)) {
       throw new NotFoundError();
+    }
+  }
+
+  createSubtask(taskId: number, input: unknown): Subtask {
+    const record = asRecord(input);
+    if (!this.repository.findById(taskId)) {
+      throw new NotFoundError();
+    }
+    if (this.repository.countSubtasks(taskId) >= MAX_SUBTASKS_PER_TASK) {
+      throw new ValidationError(`เพิ่มรายการย่อยได้ไม่เกิน ${MAX_SUBTASKS_PER_TASK} รายการ`, {
+        title: `เพิ่มรายการย่อยได้ไม่เกิน ${MAX_SUBTASKS_PER_TASK} รายการ`,
+      });
+    }
+    return this.repository.createSubtask({
+      taskId,
+      title: validateSubtaskTitle(record.title),
+      now: this.now().toISOString(),
+    });
+  }
+
+  updateSubtask(taskId: number, subtaskId: number, input: unknown): Subtask {
+    const record = asRecord(input);
+    const current = this.repository.findSubtaskById(taskId, subtaskId);
+    if (!current) {
+      throw new SubtaskNotFoundError();
+    }
+    if (!Object.hasOwn(record, "title") && !Object.hasOwn(record, "completed")) {
+      throw new ValidationError("กรุณาระบุข้อมูลรายการย่อยที่ต้องการแก้ไข");
+    }
+    const subtask = this.repository.updateSubtask(taskId, subtaskId, {
+      title: Object.hasOwn(record, "title")
+        ? validateSubtaskTitle(record.title)
+        : current.title,
+      completed: Object.hasOwn(record, "completed")
+        ? validateCompleted(record.completed)
+        : current.completed,
+      now: this.now().toISOString(),
+    });
+    if (!subtask) {
+      throw new SubtaskNotFoundError();
+    }
+    return subtask;
+  }
+
+  deleteSubtask(taskId: number, subtaskId: number): void {
+    if (!this.repository.deleteSubtask(taskId, subtaskId, this.now().toISOString())) {
+      throw new SubtaskNotFoundError();
     }
   }
 }

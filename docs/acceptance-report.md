@@ -1,6 +1,6 @@
 # รายงาน Acceptance Criteria
 
-วันที่ตรวจ: 2026-09-30
+วันที่ตรวจ: 2026-10-04
 
 | AC | สถานะ | หลักฐานที่รันจริง |
 | --- | --- | --- |
@@ -17,17 +17,18 @@
 | AC-11 สถานะ UI | ผ่าน | browser test ตรวจ empty, load error + retry, mutation error และ success toast; loading skeleton อยู่ใน initial fetch path |
 | AC-12 ฟอร์ม/accessibility | ผ่าน | browser test ยืนยัน focus ชื่องานหลังเปิด dialog, cancel dialog, disabled ระหว่าง submit และรักษาค่าหลังจำลอง 500 |
 | AC-13 การเชื่อมจริง | ผ่าน | browser test บน production build ใช้ React → Express → SQLite จริง; ไม่มี mock ในเส้นทางสำเร็จ |
-| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 27 tests ผ่าน ครอบคลุม validation/CRUD/search/combined filters/sorts/due date/tags cleanup/migration/pagination/404/persistence |
+| AC-14 การทดสอบ | ผ่าน | `npm test`: 1 file, 34 tests ผ่าน ครอบคลุม validation/CRUD/search/filters/sorts/due date/tags/subtasks/cascade/migration/pagination/404/persistence |
 | AC-15 ประสิทธิภาพ | ผ่าน | `npm run performance`: 5,000 rows, 20 requests/scenario; ดู `docs/performance-report.md` |
 | AC-16 คุณภาพ build | ผ่าน | `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` ผ่านจริง |
 | AC-17 การส่งมอบ | ผ่าน | README, `.env.example`, lockfile, database init/run/test instructions และ URL ครบ |
 | AC-18 วันครบกำหนด | ผ่าน | API และ browser tests ครอบคลุมวันนี้ สัปดาห์จันทร์–อาทิตย์ เกินกำหนด ไม่กำหนดวัน และไม่จัด `DONE` เป็น overdue |
 | AC-19 Priority และ tags | ผ่าน | API/browser tests ครอบคลุมค่าเริ่มต้น, validation, trim/dedupe, create/edit, exact tag filter และ orphan cleanup |
 | AC-20 การเรียง | ผ่าน | API test ตรวจ exact order ของทั้ง 4 แบบและ browser test ใช้ตัวเลือก sorting จริง |
+| AC-21 Checklist | ผ่าน | API/browser tests ครอบคลุมเพิ่ม ติ๊ก แก้ชื่อ ยืนยันลบ progress, limit 30, nested 404, cascade delete และ persistence |
 
 ## Browser smoke test
 
-Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: priority/tags/sorting, due date/overdue, combined filters, load error/retry, create/edit, cancel/confirm delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
+Production build ผ่าน Chrome headless ด้วยฐานข้อมูล SQLite ชั่วคราว: checklist เพิ่ม/ติ๊ก/แก้/ยืนยันลบ/progress, priority/tags/sorting, due date/overdue, combined filters, load error/retry, task create/edit/delete, simulated save error/recovery, responsive 375px/1440px และไม่มี uncaught page errors หรือ console errors นอกเหนือจาก HTTP 500 สองครั้งที่ test จำลองโดยตั้งใจ
 
 ## Production deployment smoke test
 

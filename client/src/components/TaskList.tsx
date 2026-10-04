@@ -1,4 +1,5 @@
-import type { Task, TaskPriority, TaskStatus } from "../types";
+import type { SubtaskUpdateInput, Task, TaskPriority, TaskStatus } from "../types";
+import { SubtaskChecklist } from "./SubtaskChecklist";
 
 interface TaskListProps {
   tasks: Task[];
@@ -8,6 +9,13 @@ interface TaskListProps {
   onClearFilters: () => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onCreateSubtask: (taskId: number, title: string) => Promise<void>;
+  onUpdateSubtask: (
+    taskId: number,
+    subtaskId: number,
+    input: SubtaskUpdateInput,
+  ) => Promise<void>;
+  onDeleteSubtask: (taskId: number, subtaskId: number) => Promise<void>;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("th-TH", {
@@ -85,6 +93,9 @@ export function TaskList({
   onClearFilters,
   onEdit,
   onDelete,
+  onCreateSubtask,
+  onUpdateSubtask,
+  onDeleteSubtask,
 }: TaskListProps) {
   if (isLoading) {
     return <LoadingRows />;
@@ -151,6 +162,12 @@ export function TaskList({
               ลบ
             </button>
           </div>
+          <SubtaskChecklist
+            task={task}
+            onCreate={onCreateSubtask}
+            onUpdate={onUpdateSubtask}
+            onDelete={onDeleteSubtask}
+          />
         </li>
       ))}
     </ul>

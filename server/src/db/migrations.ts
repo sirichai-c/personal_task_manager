@@ -70,6 +70,24 @@ const migrations = [
         ON task_tags(tag_id, task_id);
     `,
   },
+  {
+    version: 4,
+    sql: `
+      CREATE TABLE subtasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        title TEXT NOT NULL
+          CHECK (length(title) BETWEEN 1 AND 120 AND title = trim(title)),
+        completed INTEGER NOT NULL DEFAULT 0
+          CHECK (completed IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+
+      CREATE INDEX idx_subtasks_task_created_at
+        ON subtasks(task_id, created_at ASC, id ASC);
+    `,
+  },
 ] as const;
 
 export function runMigrations(database: DatabaseSync): void {

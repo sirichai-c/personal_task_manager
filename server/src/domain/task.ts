@@ -13,6 +13,15 @@ export type DueDateFilter = (typeof DUE_DATE_FILTERS)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type TaskSort = (typeof TASK_SORTS)[number];
 
+export interface Subtask {
+  id: number;
+  taskId: number;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -21,6 +30,7 @@ export interface Task {
   dueDate: string | null;
   priority: TaskPriority;
   tags: string[];
+  subtasks: Subtask[];
   createdAt: string;
   updatedAt: string;
 }
@@ -36,3 +46,4 @@ export interface TaskList {
 }
 
 export const PAGE_SIZE = 20;
+export const MAX_SUBTASKS_PER_TASK = 30;

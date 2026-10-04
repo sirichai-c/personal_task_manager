@@ -1,5 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, createTask, deleteTask, getTasks, updateTask } from "./api/tasks";
+import {
+  ApiError,
+  createSubtask,
+  createTask,
+  deleteSubtask,
+  deleteTask,
+  getTasks,
+  updateSubtask,
+  updateTask,
+} from "./api/tasks";
 import { DeleteTaskDialog } from "./components/DeleteTaskDialog";
 import { Pagination } from "./components/Pagination";
 import { TaskFormDialog } from "./components/TaskFormDialog";
@@ -8,6 +17,7 @@ import type {
   DueDateFilter,
   PriorityFilter,
   StatusFilter,
+  SubtaskUpdateInput,
   Task,
   TaskInput,
   TaskListResponse,
@@ -139,6 +149,77 @@ export default function App() {
       refresh();
     }
     announceSuccess("ลบงานแล้ว");
+  }
+
+  async function handleCreateSubtask(taskId: number, title: string) {
+    const subtask = await createSubtask(taskId, title);
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    subtasks: [...task.subtasks, subtask],
+                    updatedAt: subtask.updatedAt,
+                  }
+                : task,
+            ),
+          }
+        : current,
+    );
+    refresh();
+    announceSuccess("เพิ่มรายการย่อยแล้ว");
+  }
+
+  async function handleUpdateSubtask(
+    taskId: number,
+    subtaskId: number,
+    input: SubtaskUpdateInput,
+  ) {
+    const subtask = await updateSubtask(taskId, subtaskId, input);
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    subtasks: task.subtasks.map((item) =>
+                      item.id === subtaskId ? subtask : item,
+                    ),
+                    updatedAt: subtask.updatedAt,
+                  }
+                : task,
+            ),
+          }
+        : current,
+    );
+    refresh();
+    announceSuccess(input.completed === undefined ? "แก้ไขรายการย่อยแล้ว" : "อัปเดตความคืบหน้าแล้ว");
+  }
+
+  async function handleDeleteSubtask(taskId: number, subtaskId: number) {
+    await deleteSubtask(taskId, subtaskId);
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    subtasks: task.subtasks.filter((item) => item.id !== subtaskId),
+                  }
+                : task,
+            ),
+          }
+        : current,
+    );
+    refresh();
+    announceSuccess("ลบรายการย่อยแล้ว");
   }
 
   const totalItems = data?.pagination.totalItems ?? 0;
@@ -321,6 +402,9 @@ export default function App() {
             onClearFilters={clearFilters}
             onEdit={setEditingTask}
             onDelete={setDeletingTask}
+            onCreateSubtask={handleCreateSubtask}
+            onUpdateSubtask={handleUpdateSubtask}
+            onDeleteSubtask={handleDeleteSubtask}
           />
         )}
 

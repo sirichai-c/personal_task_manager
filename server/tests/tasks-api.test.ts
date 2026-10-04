@@ -90,6 +90,14 @@ async function createTask(
       dueDate: string | null;
       priority: string;
       tags: string[];
+      subtasks: Array<{
+        id: number;
+        taskId: number;
+        title: string;
+        completed: boolean;
+        createdAt: string;
+        updatedAt: string;
+      }>;
     };
   }>(
     server,
@@ -105,6 +113,22 @@ async function createTask(
       }),
     },
   );
+}
+
+async function createSubtask(server: TestServer, taskId: number, title: string) {
+  return request<{
+    item: {
+      id: number;
+      taskId: number;
+      title: string;
+      completed: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+  }>(server, `/api/tasks/${taskId}/subtasks`, {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
 }
 
 beforeEach(async () => {
@@ -132,6 +156,7 @@ describe("tasks API", () => {
       dueDate: null,
       priority: "NORMAL",
       tags: [],
+      subtasks: [],
     });
   });
 
@@ -202,6 +227,132 @@ describe("tasks API", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("creates, lists, completes, renames, and deletes ordered subtasks", async () => {
+    let currentTime = "2026-10-04T08:00:00.000Z";
+    const server = await startServer(
+      join(testDirectory, "subtasks.sqlite"),
+      () => new Date(currentTime),
+    );
+    const task = await createTask(server, "เตรียมประชุม");
+    currentTime = "2026-10-04T09:00:00.000Z";
+    const first = await createSubtask(server, task.body.item.id, "  รวบรวมข้อมูล  ");
+    currentTime = "2026-10-04T10:00:00.000Z";
+    const second = await createSubtask(server, task.body.item.id, "ทำสไลด์");
+
+    expect(first.status).toBe(201);
+    expect(first.body.item).toMatchObject({
+      taskId: task.body.item.id,
+      title: "รวบรวมข้อมูล",
+      completed: false,
+    });
+
+    currentTime = "2026-10-04T11:00:00.000Z";
+    const updated = await request<{
+      item: { title: string; completed: boolean; updatedAt: string };
+    }>(server, `/api/tasks/${task.body.item.id}/subtasks/${first.body.item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title: "รวบรวมข้อมูลล่าสุด", completed: true }),
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.item).toMatchObject({
+      title: "รวบรวมข้อมูลล่าสุด",
+      completed: true,
+      updatedAt: currentTime,
+    });
+
+    const list = await request<{
+      items: Array<{
+        updatedAt: string;
+        subtasks: Array<{ id: number; title: string; completed: boolean }>;
+      }>;
+    }>(server, "/api/tasks?sort=UPDATED_DESC");
+    expect(list.body.items[0]?.updatedAt).toBe(currentTime);
+    expect(list.body.items[0]?.subtasks).toEqual([
+      expect.objectContaining({
+        id: first.body.item.id,
+        title: "รวบรวมข้อมูลล่าสุด",
+        completed: true,
+      }),
+      expect.objectContaining({ id: second.body.item.id, title: "ทำสไลด์", completed: false }),
+    ]);
+
+    const deletion = await request(
+      server,
+      `/api/tasks/${task.body.item.id}/subtasks/${second.body.item.id}`,
+      { method: "DELETE" },
+    );
+    expect(deletion.status).toBe(204);
+    const afterDelete = await request<{
+      items: Array<{ subtasks: Array<{ id: number }> }>;
+    }>(server, "/api/tasks");
+    expect(afterDelete.body.items[0]?.subtasks.map((item) => item.id)).toEqual([
+      first.body.item.id,
+    ]);
+  });
+
+  it.each([
+    [{ title: "   " }, "title"],
+    [{ title: "ก".repeat(121) }, "title"],
+  ])("rejects invalid subtask create input %#", async (payload, field) => {
+    const server = await startServer();
+    const task = await createTask(server, "งานหลัก");
+    const response = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      `/api/tasks/${task.body.item.id}/subtasks`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields[field]).toBeTruthy();
+  });
+
+  it.each([
+    [{ completed: "yes" }, "completed"],
+    [{ title: "" }, "title"],
+  ])("rejects invalid subtask update input %#", async (payload, field) => {
+    const server = await startServer();
+    const task = await createTask(server, "งานหลัก");
+    const subtask = await createSubtask(server, task.body.item.id, "ขั้นตอนแรก");
+    const response = await request<{ error: { fields: Record<string, string> } }>(
+      server,
+      `/api/tasks/${task.body.item.id}/subtasks/${subtask.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify(payload) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields[field]).toBeTruthy();
+  });
+
+  it("limits each task to 30 subtasks", async () => {
+    const server = await startServer();
+    const task = await createTask(server, "งานใหญ่");
+    for (let index = 1; index <= 30; index += 1) {
+      const response = await createSubtask(server, task.body.item.id, `ขั้นตอน ${index}`);
+      expect(response.status).toBe(201);
+    }
+
+    const overflow = await createSubtask(server, task.body.item.id, "ขั้นตอนเกินจำนวน");
+    expect(overflow.status).toBe(400);
+  });
+
+  it("returns 404 when the task or nested subtask does not match", async () => {
+    const server = await startServer();
+    const firstTask = await createTask(server, "งานหนึ่ง");
+    const secondTask = await createTask(server, "งานสอง");
+    const subtask = await createSubtask(server, firstTask.body.item.id, "ขั้นตอนงานหนึ่ง");
+
+    const unknownTask = await createSubtask(server, 999_999, "ไม่พบงาน");
+    const mismatched = await request<{ error: { code: string } }>(
+      server,
+      `/api/tasks/${secondTask.body.item.id}/subtasks/${subtask.body.item.id}`,
+      { method: "PATCH", body: JSON.stringify({ completed: true }) },
+    );
+
+    expect(unknownTask.status).toBe(404);
+    expect(mismatched.status).toBe(404);
+    expect(mismatched.body.error.code).toBe("SUBTASK_NOT_FOUND");
   });
 
   it("returns newest tasks first and paginates at 20 items", async () => {
@@ -451,6 +602,7 @@ describe("tasks API", () => {
   it("deletes an existing task", async () => {
     const server = await startServer();
     const created = await createTask(server, "งานที่จะลบ", "", null, "NORMAL", ["ชั่วคราว"]);
+    await createSubtask(server, created.body.item.id, "รายการที่จะถูกลบตามงาน");
     const deletion = await request(server, `/api/tasks/${created.body.item.id}`, {
       method: "DELETE",
     });
@@ -466,6 +618,10 @@ describe("tasks API", () => {
       .prepare("SELECT COUNT(*) AS count FROM tags")
       .get() as { count: number };
     expect(remainingTags.count).toBe(0);
+    const remainingSubtasks = server.application.database
+      .prepare("SELECT COUNT(*) AS count FROM subtasks")
+      .get() as { count: number };
+    expect(remainingSubtasks.count).toBe(0);
   });
 
   it("keeps tasks after the database is closed and reopened", async () => {
@@ -479,11 +635,18 @@ describe("tasks API", () => {
       "HIGH",
       ["ถาวร"],
     );
+    await createSubtask(firstServer, created.body.item.id, "ขั้นตอนถาวร");
     await stopServer(firstServer);
 
     const restartedServer = await startServer(databasePath);
     const list = await request<{
-      items: Array<{ id: number; title: string; priority: string; tags: string[] }>;
+      items: Array<{
+        id: number;
+        title: string;
+        priority: string;
+        tags: string[];
+        subtasks: Array<{ title: string }>;
+      }>;
     }>(
       restartedServer,
       "/api/tasks",
@@ -496,6 +659,7 @@ describe("tasks API", () => {
         title: "งานที่ต้องอยู่ต่อ",
         priority: "HIGH",
         tags: ["ถาวร"],
+        subtasks: [expect.objectContaining({ title: "ขั้นตอนถาวร" })],
       }),
     );
   });
@@ -533,6 +697,7 @@ describe("tasks API", () => {
         dueDate: string | null;
         priority: string;
         tags: string[];
+        subtasks: unknown[];
       }>;
     }>(
       server,
@@ -549,8 +714,9 @@ describe("tasks API", () => {
         dueDate: null,
         priority: "NORMAL",
         tags: [],
+        subtasks: [],
       }),
     );
-    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
+    expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
   });
 });

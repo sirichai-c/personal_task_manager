@@ -15,6 +15,20 @@ export type StatusFilter = TaskStatus | "";
 export type PriorityFilter = TaskPriority | "";
 export type DueDateFilter = (typeof DUE_DATE_FILTERS)[number] | "";
 
+export interface Subtask {
+  id: number;
+  taskId: number;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubtaskUpdateInput {
+  title?: string;
+  completed?: boolean;
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -23,6 +37,7 @@ export interface Task {
   dueDate: string | null;
   priority: TaskPriority;
   tags: string[];
+  subtasks: Subtask[];
   createdAt: string;
   updatedAt: string;
 }

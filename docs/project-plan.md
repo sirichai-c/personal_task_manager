@@ -1,10 +1,10 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-09-30 — สถานะ: พัฒนา ทดสอบ และ push ลำดับที่ 3 สำเร็จ; production deploy รอ Railway เปิดรับ deployment
+อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนาและทดสอบลำดับที่ 4 สำเร็จ
 
 ## ขอบเขต
 
-เว็บแอปผู้ใช้คนเดียวสำหรับเพิ่ม ค้นหา กรอง กำหนดวันครบกำหนด จัด priority/หลาย tags เลือกลำดับแสดงผล แก้ไขสถานะ และลบงาน ข้อมูลเก็บในไฟล์ SQLite และคงอยู่หลังเริ่มเซิร์ฟเวอร์ใหม่ งานหลักไม่รวมบัญชีผู้ใช้ การแชร์ การแจ้งเตือน หรือ AI หลังส่งมอบงานหลัก ผู้ใช้ขยายขอบเขตให้ push GitHub, deploy แบบ public, เพิ่มวันครบกำหนด และทำลำดับที่ 3 คือ priority/tags/sorting โดยยืนยันให้ไม่มี authentication และยอมรับค่าใช้จ่ายที่อาจเกิดจาก persistent volume
+เว็บแอปผู้ใช้คนเดียวสำหรับเพิ่ม ค้นหา กรอง กำหนดวันครบกำหนด จัด priority/หลาย tags เลือกลำดับแสดงผล แบ่งงานเป็น checklist แก้ไขสถานะ และลบงาน ข้อมูลเก็บในไฟล์ SQLite และคงอยู่หลังเริ่มเซิร์ฟเวอร์ใหม่ งานหลักไม่รวมบัญชีผู้ใช้ การแชร์ การแจ้งเตือน หรือ AI หลังส่งมอบงานหลัก ผู้ใช้ขยายขอบเขตให้เพิ่มวันครบกำหนด, priority/tags/sorting และลำดับที่ 4 คือ subtasks/checklist
 
 ## Acceptance criteria
 
@@ -28,6 +28,7 @@
 - **AC-18 วันครบกำหนด:** แสดงวันนี้/วันที่/เกินกำหนดได้ กรองวันนี้ สัปดาห์จันทร์–อาทิตย์ เกินกำหนด และไม่กำหนดวันได้ โดยงาน `DONE` ไม่ถูกนับว่าเกินกำหนด
 - **AC-19 Priority และ tags:** งานมี priority `LOW | NORMAL | HIGH` และหลาย tags ได้ กรอง priority/tag ร่วมกับตัวกรองเดิมได้ แท็กถูกตัดช่องว่างและไม่ซ้ำแบบไม่สนตัวพิมพ์
 - **AC-20 การเรียง:** เลือกเรียงตามวันสร้างล่าสุด วันแก้ไขล่าสุด กำหนดส่งใกล้สุด หรือความสำคัญสูงสุดได้ โดยผลลัพธ์มีลำดับสำรองที่คงที่และงานไม่มีกำหนดส่งอยู่ท้าย `DUE_ASC`
+- **AC-21 Checklist:** เพิ่มรายการย่อยได้ไม่เกิน 30 รายการต่องาน ติ๊กเสร็จ แก้ชื่อ ยืนยันก่อนลบ แสดงความคืบหน้า และ cascade delete เมื่อเอางานหลักออกได้
 
 ## สมมติฐานและการตัดสินใจ
 
@@ -43,7 +44,7 @@
 
 ## โครงสร้างข้อมูล
 
-`tasks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, status TEXT, due_date TEXT NULL, priority TEXT, created_at TEXT, updated_at TEXT)`, `tags(id, name)` และ `task_tags(task_id, tag_id)` พร้อม CHECK constraints, foreign keys และ indexes ตาม query การสร้าง schema ใช้ migration SQL ตอนเปิดแอป โดยรุ่น 2 เพิ่ม `due_date` และรุ่น 3 เพิ่ม `priority` กับโครงสร้าง tags ให้งานเดิมโดยไม่สูญเสียข้อมูล
+`tasks(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, status TEXT, due_date TEXT NULL, priority TEXT, created_at TEXT, updated_at TEXT)`, `tags`, `task_tags` และ `subtasks(id, task_id, title, completed, created_at, updated_at)` พร้อม CHECK constraints, foreign keys และ indexes ตาม query การสร้าง schema ใช้ migration SQL ตอนเปิดแอป โดยรุ่น 2 เพิ่ม `due_date`, รุ่น 3 เพิ่ม priority/tags และรุ่น 4 เพิ่ม checklist ให้งานเดิมโดยไม่สูญเสียข้อมูล
 
 ## สถาปัตยกรรม
 
@@ -67,6 +68,7 @@
        [ค้นหา................] [แท็ก........] [ค้นหา] [ล้าง]
        [สถานะ] [กำหนดส่ง] [ความสำคัญ] [เรียงตาม]
        ─ งานแถว: สถานะ/priority | ชื่อ/รายละเอียด/tags | วันที่ | แก้ไข ลบ
+         └ รายการย่อย: ความคืบหน้า / checkbox / เพิ่ม-แก้-ลบ
        ─ งานแถว...
                                       [ก่อนหน้า  1/3  ถัดไป]
 
@@ -92,8 +94,10 @@
 9. [x] ตั้ง production variables, persistent volume `/app/data`, public domain และตรวจ production smoke test
 10. [x] เพิ่มวันครบกำหนด ตัวกรองวันนี้/สัปดาห์นี้/เกินกำหนด/ไม่กำหนดวัน และ migration จาก schema เดิม
 11. [x] เพิ่ม priority, หลาย tags, ตัวกรองแบบผสม, การเรียง 4 แบบ และ migration รุ่น 3 (27 tests ผ่าน)
-12. [ ] Deploy ลำดับที่ 3 ขึ้น Railway และ production smoke test (Railway ปฏิเสธสองครั้งด้วย `Deploys have been paused temporarily`; production เดิมยัง health 200)
+12. [x] Push ลำดับที่ 3 และบันทึกข้อจำกัด Railway ที่หยุดรับ deployment ชั่วคราว โดยคง production เดิมไว้
+13. [x] เพิ่ม subtasks/checklist, progress, limit 30, cascade delete และ migration รุ่น 4 (34 tests ผ่าน)
+14. [ ] Deploy ลำดับที่ 3–4 ขึ้น Railway และ production smoke test หลัง push
 
 ## ปัญหาค้าง
 
-โค้ดและการทดสอบลำดับที่ 3 เสร็จแล้ว เหลือ deployment ภายนอกเพียงรายการเดียว: Railway ยังหยุดรับ deployment ชั่วคราว ณ เวลาส่งมอบ จึงคง service เดิมไว้โดยไม่แตะ persistent volume ต้อง retry deployment `main` เมื่อ Railway เปิดรับอีกครั้ง ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+โค้ดและการทดสอบลำดับที่ 4 เสร็จแล้ว เหลือ push และ deployment ภายนอกตามข้อ 14; Railway ยังแสดง production เดิมจาก commit `96ea5f5` จึงต้องตรวจการเปิดรับ deployment อีกครั้งหลัง push โดยไม่แตะ persistent volume ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

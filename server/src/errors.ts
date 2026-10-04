@@ -24,3 +24,9 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class SubtaskNotFoundError extends AppError {
+  constructor() {
+    super(404, "SUBTASK_NOT_FOUND", "ไม่พบรายการย่อยที่ต้องการ");
+    this.name = "SubtaskNotFoundError";
+  }
+}

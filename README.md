@@ -1,6 +1,6 @@
 # เว็บจัดการงานส่วนตัว
 
-เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง จัดลำดับความสำคัญ ติดแท็ก กำหนดวันครบกำหนด เรียงรายการ แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
+เว็บแอปภาษาไทยสำหรับบันทึก ค้นหา กรอง จัดลำดับความสำคัญ ติดแท็ก กำหนดวันครบกำหนด เรียงรายการ แบ่งงานเป็น checklist แก้ไขสถานะ และลบงานส่วนตัวบนเครื่องเดียว ข้อมูลเก็บถาวรใน SQLite และ frontend ติดต่อ Express API จริง ไม่มี mock API หรือระบบบัญชีผู้ใช้
 
 ## สิ่งที่ต้องมี
 
@@ -63,7 +63,7 @@ npm run check
 
 Integration tests สร้าง SQLite ใน temporary directory ของระบบและลบทิ้งหลังทดสอบ จึงไม่แตะฐานข้อมูลใช้งานจริง Performance script ทำเช่นเดียวกันและสร้างข้อมูล 5,000 รายการเฉพาะในฐานข้อมูลชั่วคราว
 
-Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบ priority, tags, sorting, วันครบกำหนด, CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
+Browser smoke test ที่ใช้ส่งมอบอยู่ใน `scripts/browser-smoke.py` และ `scripts/run-browser-smoke.py` ทดสอบ checklist (เพิ่ม/ติ๊ก/แก้ไข/ยืนยันลบ/ความคืบหน้า), priority, tags, sorting, วันครบกำหนด, CRUD/filter/error recovery กับ Chrome แบบ headless ที่ 375px และ 1440px โดย runner บังคับใช้ SQLite ชั่วคราวและไม่แตะฐานข้อมูลใน `.env` หากต้องการรันซ้ำบน Windows ที่ติดตั้ง Chrome ในตำแหน่งมาตรฐาน:
 
 ```powershell
 python -m pip install --target .browser-tools playwright
@@ -79,11 +79,16 @@ python scripts/run-browser-smoke.py
 | `POST` | `/api/tasks` | เพิ่มงานพร้อม `dueDate`, `priority`, `tags`; สถานะเริ่มต้น `TODO` |
 | `PATCH` | `/api/tasks/:id` | แก้ชื่อ รายละเอียด สถานะ วันครบกำหนด ความสำคัญ หรือแท็ก |
 | `DELETE` | `/api/tasks/:id` | ลบงาน |
+| `POST` | `/api/tasks/:id/subtasks` | เพิ่มรายการย่อย |
+| `PATCH` | `/api/tasks/:id/subtasks/:subtaskId` | แก้ชื่อหรือติ๊กสถานะรายการย่อย |
+| `DELETE` | `/api/tasks/:id/subtasks/:subtaskId` | ลบรายการย่อย |
 | `GET` | `/api/health` | ตรวจว่า server พร้อม |
 
 สถานะที่รองรับคือ `TODO`, `IN_PROGRESS` และ `DONE`; ความสำคัญคือ `LOW`, `NORMAL` หรือ `HIGH` (ค่าปริยาย `NORMAL`) และกำหนดได้ไม่เกิน 10 แท็ก แท็กละ 1–30 ตัวอักษรแบบไม่ซ้ำกันโดยไม่สนตัวพิมพ์ `dueDate` เป็น `null` หรือวันที่ `YYYY-MM-DD` ตัวกรองกำหนดส่งรองรับ `TODAY`, `THIS_WEEK`, `OVERDUE` และ `NO_DATE` โดย `referenceDate` ระบุวันที่ท้องถิ่นของผู้ใช้ สัปดาห์นับจันทร์–อาทิตย์ และงาน `DONE` จะไม่ถูกนับเป็นงานเกินกำหนด
 
 `sort` รองรับ `CREATED_DESC` (ค่าปริยาย), `UPDATED_DESC`, `DUE_ASC` ซึ่งวางงานไม่มีวันไว้ท้ายสุด และ `PRIORITY_DESC` ซึ่งเรียง `HIGH → NORMAL → LOW`; ทุกแบบมีลำดับสำรองที่คงที่ ข้อผิดพลาดตอบในรูป `{ "error": { "code", "message", "fields"? } }` โดยไม่ส่ง stack trace กลับไป
+
+แต่ละงานมี `subtasks` เรียงตามเวลาที่สร้างได้ไม่เกิน 30 รายการ ชื่อรายการย่อยยาว 1–120 ตัวอักษร การเพิ่ม แก้ ติ๊ก หรือลบจะอัปเดตเวลาของงานหลัก และเมื่อลบงาน รายการย่อยทั้งหมดจะถูกลบตามด้วย foreign-key cascade
 
 ## โครงสร้างโปรเจกต์
 
@@ -107,7 +112,7 @@ docs/                      แผน รายงาน AC และผล perfo
 - Source: GitHub repository `sirichai-c/personal_task_manager`, branch `main`
 - ฐานข้อมูล: SQLite ที่ `/app/data/tasks.sqlite` บน Railway persistent volume ซึ่ง mount ที่ `/app/data`
 
-> สถานะ 2026-09-30: source ของ priority/tags/sorting อยู่บน `main` แล้ว แต่ Railway ตอบ `Deploys have been paused temporarily` ทั้งจาก auto-deploy และ CLI จึงยังให้ production รัน commit ก่อนหน้า (`96ea5f5`) ต่อไปโดยไม่แตะ volume; local production build และ browser smoke test ของฟีเจอร์ใหม่ผ่านครบแล้ว
+> สถานะ 2026-10-04: source ของ priority/tags/sorting และ checklist อยู่ใน repository แล้ว แต่ Railway ยังแสดง deployment ล่าสุดเป็น commit `96ea5f5` จึงยังให้ production รุ่นเดิมทำงานต่อโดยไม่แตะ volume; local production build และ browser smoke test ของฟีเจอร์ใหม่ผ่านครบแล้ว
 
 ขั้นตอนแบบเข้าใจง่ายสำหรับสร้าง deployment ใหม่:
 
