@@ -1,6 +1,6 @@
 # แผนโครงการเว็บจัดการงานส่วนตัว
 
-อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนาและทดสอบลำดับที่ 5 สำเร็จ
+อัปเดตล่าสุด: 2026-10-04 — สถานะ: พัฒนา ทดสอบ push และ deploy ลำดับที่ 5 สำเร็จ
 
 ## ขอบเขต
 
@@ -100,7 +100,8 @@
 13. [x] เพิ่ม subtasks/checklist, progress, limit 30, cascade delete และ migration รุ่น 4 (34 tests ผ่าน)
 14. [x] Deploy ลำดับที่ 3–4 ขึ้น Railway และ production smoke test หลัง push
 15. [x] เพิ่มงานซ้ำรายวัน/สัปดาห์/เดือน, สร้างรอบถัดไปแบบไม่ซ้ำ, reset checklist และ migration รุ่น 5 (42 tests ผ่าน)
+16. [x] Push commit `a4ee1cc`, deploy ลำดับที่ 5 ขึ้น Railway และ production smoke test พร้อม cleanup ผ่าน
 
 ## ปัญหาค้าง
 
-ไม่มีสิ่งค้างในขอบเขตการพัฒนาและทดสอบลำดับที่ 5; ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ
+ไม่มีสิ่งค้างในขอบเขตลำดับที่ 5; ไม่ได้ทำ cross-browser หรือ concurrency test เพราะอยู่นอกเป้าหมายผู้ใช้คนเดียว และไม่ได้เพิ่ม authentication ตามการยืนยันของผู้ใช้ ดังนั้น production URL เป็นสาธารณะและไม่เหมาะกับข้อมูลลับ

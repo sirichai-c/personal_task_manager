@@ -114,7 +114,7 @@ docs/                      แผน รายงาน AC และผล perfo
 - Source: GitHub repository `sirichai-c/personal_task_manager`, branch `main`
 - ฐานข้อมูล: SQLite ที่ `/app/data/tasks.sqlite` บน Railway persistent volume ซึ่ง mount ที่ `/app/data`
 
-> สถานะ 2026-10-04: Railway deployment `08faab78-e23a-4b73-9bd0-a08688512baa` จาก feature commit `f0e462d` สำเร็จแล้ว Production smoke test ผ่านทั้ง priority/tags/sorting และ checklist และลบข้อมูลทดสอบออกแล้วโดยไม่แตะข้อมูลอื่นใน volume
+> สถานะ 2026-10-04: Railway deployment `b269d53a-cf67-41bb-92cb-8a37545c2f7f` จาก feature commit `a4ee1cc` สำเร็จแล้ว Production smoke test ผ่านทั้งงานทำซ้ำรายเดือน/ปีอธิกสุรทิน, การป้องกันรอบซ้ำ, reset checklist, priority/tags และ validation พร้อมลบข้อมูลทดสอบออกและยืนยันว่าไม่เหลือโดยไม่แตะข้อมูลอื่นใน volume
 
 ขั้นตอนแบบเข้าใจง่ายสำหรับสร้าง deployment ใหม่:
 
