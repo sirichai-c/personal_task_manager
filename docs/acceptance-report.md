@@ -35,7 +35,7 @@ Production build ผ่าน Chrome headless ด้วยฐานข้อม�
 
 ## Production deployment smoke test
 
-Railway deployment `a3dea6ad-7422-4b44-a462-23df57b01f36` จาก feature commit `664143a` สำเร็จ ตรวจแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ frontend asset ตรงกับ local build (`index-CGsh0Zxg.js`) Production API ผ่าน validation 400 เมื่อเปิดเตือนโดยไม่มีวัน, การเตือน 0/1/3/7 วัน, ไม่คืนงานที่ยังไม่ถึงเวลาหรือเสร็จแล้ว, persistent dismiss, reactivation เมื่อเลื่อนวัน, งาน `WEEKLY` รอบใหม่คัดลอกเตือนล่วงหน้า 3 วันและ reset checklist โดยไม่รับสถานะซ่อน รวมทั้ง PATCH `DONE` ซ้ำไม่สร้างลูกซ้ำ จากนั้นลบ smoke data 6 งานตาม UUID prefix และยืนยันผลค้นหา 0 รายการโดยไม่แตะข้อมูลอื่นใน persistent volume `/app/data`
+Railway deployment `3d0dadd0-f7a4-42e1-ac9c-80a8c8687f22` จาก feature commit `e9d9f9c` สำเร็จ ตรวจแล้วว่า `/api/health` ตอบ `{ "status": "ok" }` และ frontend asset ตรงกับ local build (`index-D7PGxQNq.js`) Production API ปฏิทินผ่านขอบเขตก่อนเดือน/วันแรก/วันสุดท้าย/หลังเดือน, ไม่รวมงานไม่มีวัน, เรียง `HIGH` ก่อน `LOW` ในวันเดียวกัน, รวมงาน `DONE`, ใช้เดือนปัจจุบันเมื่อไม่ส่ง query และตอบ 400 พร้อม `fields.month` เมื่อเดือนไม่ถูกต้อง จากนั้นลบ smoke data 7 งานตาม prefix เฉพาะรอบและยืนยันผลค้นหา 0 รายการโดยไม่แตะข้อมูลอื่นใน persistent volume `/app/data`
 
 ## ข้อจำกัดของหลักฐาน
 
